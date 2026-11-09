@@ -1,0 +1,27 @@
+{
+  "name": "money-manager",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "build:web": "npm --workspace=@mm/app run export:web",
+    "build:web-embed": "npm --workspace=@mm/app run export:web && tsx scripts/embed-web.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "sim": "npm --workspace=@mm/phone-sim run start",
+    "web": "npm --workspace=@mm/app run web",
+    "ios": "npm --workspace=@mm/app run ios"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "fast-check": "^3.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "~5.8.2",
+    "vitest": "^2.1.8"
+  }
+}

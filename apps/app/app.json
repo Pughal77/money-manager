@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Money Manager",
+    "slug": "money-manager",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "moneymanager",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.localfirst.moneymanager",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Money Manager uses your local Wi-Fi or personal hotspot to serve the web view and sync transactions directly between your browser and your iPhone.",
+        "NSBonjourServices": ["_http._tcp."]
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite"
+    ]
+  }
+}

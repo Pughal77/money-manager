@@ -1,0 +1,14 @@
+{
+  "name": "@mm/sync",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mm/core": "*",
+    "tinybase": "^5.4.2"
+  }
+}
