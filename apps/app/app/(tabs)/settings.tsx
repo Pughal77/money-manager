@@ -23,9 +23,6 @@ export default function SettingsScreen() {
   const { store, role, webState, lanState } = useVault();
   const [phoneUrlInput, setPhoneUrlInput] = useState(webState.phoneUrl);
   const [deviceNameInput, setDeviceNameInput] = useState(webState.deviceName);
-  const [bridgeUrlInput, setBridgeUrlInput] = useState(
-    lanState.url ?? 'http://192.168.1.50:8787'
-  );
   const [restoreMode, setRestoreMode] = useState<RestoreMode>('merge');
   const [backupMessage, setBackupMessage] = useState<string | null>(null);
 
@@ -91,42 +88,17 @@ export default function SettingsScreen() {
           <View style={{ marginVertical: spacing.md }}>
             {lanState.running ? (
               <Button
-                label={`Stop Web Access (${
-                  lanState.mode === 'expo-go-bridge' ? 'Bridge Mode' : 'Direct Server'
-                })`}
+                label="Stop iPhone Web Server"
                 variant="danger"
                 onPress={() => phoneLanServer.stop()}
               />
             ) : (
-              <View style={{ gap: spacing.sm }}>
-                <Text style={styles.label}>
-                  Option 1 (Free Expo Go — No Paid Dev Account): Computer Bridge URL
-                </Text>
-                <TextInput
-                  value={bridgeUrlInput}
-                  onChangeText={setBridgeUrlInput}
-                  style={styles.input}
-                  placeholder="http://192.168.1.50:8787"
-                  placeholderTextColor={colors.textMuted}
-                />
-                <Button
-                  label="Link iPhone SQLite Master to Computer Bridge"
-                  onPress={() =>
-                    void phoneLanServer.startBridgeLink(store, bridgeUrlInput)
-                  }
-                />
-
-                <Text style={styles.label}>
-                  Option 2 (Standalone Xcode Build): Direct Server on iPhone
-                </Text>
-                <Button
-                  label="Start Direct iPhone Server (Port 8787)"
-                  variant="secondary"
-                  onPress={() =>
-                    void phoneLanServer.start(store, 8787).catch(() => {})
-                  }
-                />
-              </View>
+              <Button
+                label="Start iPhone Web Server (Port 8787)"
+                onPress={() =>
+                  void phoneLanServer.start(store, 8787).catch(() => {})
+                }
+              />
             )}
           </View>
 
@@ -139,11 +111,12 @@ export default function SettingsScreen() {
           {lanState.url && (
             <View style={styles.urlBox}>
               <Text style={styles.urlLabel}>
-                {lanState.mode === 'expo-go-bridge'
-                  ? 'Linked to Stateless Computer Bridge:'
-                  : 'Open on your Mac / Browser:'}
+                Open this exact URL in your Mac / PC browser (same Wi-Fi or Hotspot):
               </Text>
               <Text style={styles.urlValue}>{lanState.url}</Text>
+              <Text style={[styles.urlLabel, { marginTop: 6 }]}>
+                Note: Keep this app open on your iPhone screen while using the browser, and make sure SideStore's VPN is turned OFF.
+              </Text>
             </View>
           )}
 

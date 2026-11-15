@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import {
+  deleteBudget,
   formatCents,
   getBudgetStatuses,
   listCategories,
@@ -105,13 +106,24 @@ export default function BudgetsScreen() {
             <View key={b.id} style={styles.budgetRow}>
               <View style={styles.rowHeader}>
                 <Text style={styles.catName}>{b.categoryName}</Text>
-                <Text style={styles.amounts}>
-                  {formatCents(b.spent)} spent of {formatCents(b.limitAmount)} (
-                  {b.remaining >= 0
-                    ? `${formatCents(b.remaining)} left`
-                    : `${formatCents(Math.abs(b.remaining))} over`}
-                  )
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Text style={styles.amounts}>
+                    {formatCents(b.spent)} / {formatCents(b.limitAmount)}
+                  </Text>
+                  <Pressable
+                    onPress={() => deleteBudget(store, b.id)}
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: radius.sm,
+                      backgroundColor: colors.surfaceElevated,
+                    }}
+                  >
+                    <Text style={{ color: colors.expense, fontSize: 11, fontWeight: '600' }}>
+                      Delete
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
               <ProgressBar progress={b.progress} color={b.categoryColor} />
             </View>

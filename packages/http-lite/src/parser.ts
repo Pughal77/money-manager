@@ -28,6 +28,71 @@ const STATUS_TEXT: Record<number, string> = {
 };
 
 /**
+ * Pure-JS safe UTF-8 encoder/decoder so React Native (Hermes on iOS) works
+ * even when global TextEncoder / TextDecoder are unavailable.
+ */
+export function encodeUtf8(str: string): Uint8Array {
+  if (typeof globalThis.TextEncoder !== 'undefined') {
+    return new globalThis.TextEncoder().encode(str);
+  }
+  const utf8: number[] = [];
+  for (let i = 0; i < str.length; i++) {
+    let charcode = str.charCodeAt(i);
+    if (charcode < 0x80) utf8.push(charcode);
+    else if (charcode < 0x800) {
+      utf8.push(0xc0 | (charcode >> 6), 0x80 | (charcode & 0x3f));
+    } else if (charcode < 0xd800 || charcode >= 0xe000) {
+      utf8.push(
+        0xe0 | (charcode >> 12),
+        0x80 | ((charcode >> 6) & 0x3f),
+        0x80 | (charcode & 0x3f)
+      );
+    } else {
+      i++;
+      charcode = 0x10000 + (((charcode & 0x3ff) << 10) | (str.charCodeAt(i) & 0x3ff));
+      utf8.push(
+        0xf0 | (charcode >> 18),
+        0x80 | ((charcode >> 12) & 0x3f),
+        0x80 | ((charcode >> 6) & 0x3f),
+        0x80 | (charcode & 0x3f)
+      );
+    }
+  }
+  return new Uint8Array(utf8);
+}
+
+export function decodeUtf8(bytes: Uint8Array): string {
+  if (typeof globalThis.TextDecoder !== 'undefined') {
+    return new globalThis.TextDecoder('utf-8').decode(bytes);
+  }
+  let out = '';
+  let i = 0;
+  while (i < bytes.length) {
+    const c = bytes[i++];
+    if (c < 128) {
+      out += String.fromCharCode(c);
+    } else if (c > 191 && c < 224) {
+      const c2 = bytes[i++];
+      out += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
+    } else if (c > 239 && c < 365) {
+      const c2 = bytes[i++];
+      const c3 = bytes[i++];
+      const c4 = bytes[i++];
+      const u =
+        (((c & 7) << 18) | ((c2 & 63) << 12) | ((c3 & 63) << 6) | (c4 & 63)) -
+        0x10000;
+      out += String.fromCharCode(0xd800 + (u >> 10));
+      out += String.fromCharCode(0xdc00 + (u & 1023));
+    } else {
+      const c2 = bytes[i++];
+      const c3 = bytes[i++];
+      out += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
+    }
+  }
+  return out;
+}
+
+/**
  * Stateful streaming HTTP/1.1 request parser for raw TCP sockets.
  * Handles requests split across multiple TCP packets as well as multiple pipelined requests.
  */
@@ -35,8 +100,7 @@ export class HttpStreamParser {
   private buffer = '';
 
   public feed(chunk: string | Uint8Array): HttpRequest[] {
-    const str =
-      typeof chunk === 'string' ? chunk : new TextDecoder('utf-8').decode(chunk);
+    const str = typeof chunk === 'string' ? chunk : decodeUtf8(chunk);
     this.buffer += str;
 
     if (this.buffer.length > MAX_BUFFER_BYTES) {
@@ -69,18 +133,17 @@ export class HttpStreamParser {
       const contentLength = Number(headers['content-length'] ?? '0');
       const bodyStart = headerEnd + 4;
 
-      // Note: string length vs byte length approximation; for UTF-8 JSON we check UTF-8 byte length
       const remainingStr = this.buffer.slice(bodyStart);
-      const remainingBytes = new TextEncoder().encode(remainingStr);
+      const remainingBytes = encodeUtf8(remainingStr);
       if (remainingBytes.byteLength < contentLength) {
         // Wait for more TCP chunks
         break;
       }
 
       const bodyBytes = remainingBytes.slice(0, contentLength);
-      const body = new TextDecoder('utf-8').decode(bodyBytes);
+      const body = decodeUtf8(bodyBytes);
       const leftoverBytes = remainingBytes.slice(contentLength);
-      this.buffer = new TextDecoder('utf-8').decode(leftoverBytes);
+      this.buffer = decodeUtf8(leftoverBytes);
 
       const [pathPart, queryPart = ''] = rawTarget.split('?');
       const query: Record<string, string> = {};
@@ -110,7 +173,7 @@ export function serializeHttpResponse(res: HttpResponse): Uint8Array {
     res.body === undefined
       ? new Uint8Array(0)
       : typeof res.body === 'string'
-        ? new TextEncoder().encode(res.body)
+        ? encodeUtf8(res.body)
         : res.body;
 
   const headers: Record<string, string> = {
@@ -129,7 +192,7 @@ export function serializeHttpResponse(res: HttpResponse): Uint8Array {
   }
   headerStr += '\r\n';
 
-  const headerBytes = new TextEncoder().encode(headerStr);
+  const headerBytes = encodeUtf8(headerStr);
   const combined = new Uint8Array(headerBytes.byteLength + bodyBytes.byteLength);
   combined.set(headerBytes, 0);
   combined.set(bodyBytes, headerBytes.byteLength);

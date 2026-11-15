@@ -205,6 +205,10 @@ class PhoneLanServerController {
     try {
       const ip = await Network.getIpAddressAsync();
       this.ipAddress = ip && ip !== '0.0.0.0' ? ip : '172.20.10.1';
+      if (this.ipAddress.startsWith('10.7.')) {
+        this.lastError =
+          'SideStore VPN (10.7.x.x) is active! Please turn OFF LocalDevVPN / WireGuard and tap Restart Server so your Wi-Fi IP is used.';
+      }
     } catch {
       this.ipAddress = '172.20.10.1';
     }
@@ -236,8 +240,7 @@ class PhoneLanServerController {
       await new Promise<void>((resolve, reject) => {
         const srv = TcpSocket.createServer((socket: {
           on: (ev: string, cb: (d: string | Uint8Array) => void) => void;
-          write: (b: Uint8Array) => void;
-          end: () => void;
+          end: (data?: string | Uint8Array) => void;
         }) => {
           const parser = new HttpStreamParser();
           socket.on('data', (data) => {
@@ -248,15 +251,15 @@ class PhoneLanServerController {
               for (const req of requests) {
                 const res = router(req);
                 const bytes = serializeHttpResponse(res);
-                socket.write(Buffer.from(bytes));
-                socket.end();
+                // Pass Uint8Array directly to socket.end(bytes) so react-native-tcp-socket
+                // flushes all bytes over the native bridge before closing the connection.
+                socket.end(bytes);
               }
             } catch (err) {
               const res = jsonResponse(400, {
                 error: err instanceof Error ? err.message : 'Bad request',
               });
-              socket.write(Buffer.from(serializeHttpResponse(res)));
-              socket.end();
+              socket.end(serializeHttpResponse(res));
             }
           });
         });
