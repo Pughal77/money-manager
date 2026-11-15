@@ -11,7 +11,11 @@
       "bundleIdentifier": "com.localfirst.moneymanager",
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Money Manager uses your local Wi-Fi or personal hotspot to serve the web view and sync transactions directly between your browser and your iPhone.",
-        "NSBonjourServices": ["_http._tcp."]
+        "NSBonjourServices": [
+          "_http._tcp.",
+          "_http._tcp."
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "web": {
@@ -21,6 +25,11 @@
     "plugins": [
       "expo-router",
       "expo-sqlite"
-    ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      }
+    }
   }
 }

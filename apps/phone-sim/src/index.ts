@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import {
   addTransaction,
@@ -26,65 +27,76 @@ export interface PhoneSimOptions {
   host?: string;
   dataFilePath?: string;
   autoApprove?: boolean;
+  /**
+   * When true (`npm run bridge`), runs as a stateless, memory-only LAN bridge for a real iPhone
+   * running inside the free Expo Go app. Writes nothing to disk; the iPhone's SQLite database
+   * remains the sole persisted source of truth.
+   */
+  statelessBridge?: boolean;
 }
 
 export function startPhoneSimServer(options?: PhoneSimOptions) {
+  const isBridge =
+    options?.statelessBridge ?? process.argv.includes('--bridge');
   const port = options?.port ?? Number(process.env.PORT ?? 8787);
   const host = options?.host ?? '0.0.0.0';
   const dataFile =
     options?.dataFilePath ?? path.resolve(process.cwd(), '.sim-data.json');
   const autoApprove =
-    options?.autoApprove ?? process.env.AUTO_APPROVE !== 'false';
+    options?.autoApprove ??
+    (isBridge ? false : process.env.AUTO_APPROVE !== 'false');
 
-  const store = createAppStore('iphone-sim-master');
+  const store = createAppStore(isBridge ? 'lan-memory-bridge' : 'iphone-sim-master');
 
-  // Load persisted data if present, else seed default accounts/categories and sample transactions
-  if (fs.existsSync(dataFile)) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(dataFile, 'utf-8'));
-      store.setMergeableContent(raw);
-    } catch {
+  if (!isBridge) {
+    // Simulator mode: load persisted data if present, else seed sample data
+    if (fs.existsSync(dataFile)) {
+      try {
+        const raw = JSON.parse(fs.readFileSync(dataFile, 'utf-8'));
+        store.setMergeableContent(raw);
+      } catch {
+        seedDefaultData(store);
+      }
+    } else {
       seedDefaultData(store);
+      const today = new Date().toISOString().slice(0, 10);
+      addTransaction(store, {
+        id: 'tx-sample-1',
+        accountId: 'acc-checking',
+        categoryId: 'cat-groceries',
+        kind: 'expense',
+        amount: 6450,
+        date: today,
+        note: 'Weekly groceries',
+      });
+      addTransaction(store, {
+        id: 'tx-sample-2',
+        accountId: 'acc-checking',
+        categoryId: 'cat-salary',
+        kind: 'income',
+        amount: 320000,
+        date: today,
+        note: 'Monthly paycheck',
+      });
     }
-  } else {
-    seedDefaultData(store);
-    const today = new Date().toISOString().slice(0, 10);
-    addTransaction(store, {
-      id: 'tx-sample-1',
-      accountId: 'acc-checking',
-      categoryId: 'cat-groceries',
-      kind: 'expense',
-      amount: 6450,
-      date: today,
-      note: 'Weekly groceries',
-    });
-    addTransaction(store, {
-      id: 'tx-sample-2',
-      accountId: 'acc-checking',
-      categoryId: 'cat-salary',
-      kind: 'income',
-      amount: 320000,
-      date: today,
-      note: 'Monthly paycheck',
-    });
-  }
 
-  const persistToDisk = () => {
-    try {
-      fs.writeFileSync(
-        dataFile,
-        JSON.stringify(store.getMergeableContent()),
-        'utf-8'
-      );
-    } catch (err) {
-      console.error('[phone-sim] Failed to persist data:', err);
-    }
-  };
+    const persistToDisk = () => {
+      try {
+        fs.writeFileSync(
+          dataFile,
+          JSON.stringify(store.getMergeableContent()),
+          'utf-8'
+        );
+      } catch (err) {
+        console.error('[phone-sim] Failed to persist data:', err);
+      }
+    };
 
-  store.addDidFinishTransactionListener(() => {
+    store.addDidFinishTransactionListener(() => {
+      persistToDisk();
+    });
     persistToDisk();
-  });
-  persistToDisk();
+  }
 
   const approval = new BrowserApprovalManager({ autoApprove });
 
@@ -107,7 +119,25 @@ export function startPhoneSimServer(options?: PhoneSimOptions) {
       try {
         const requests = parser.feed(chunk);
         for (const req of requests) {
-          // Simulator control endpoints (for inspecting or approving pending browser requests during dev/testing)
+          // Endpoint used by a real iPhone in free Expo Go mode to push its authoritative
+          // SQLite state, pull browser edits, and receive "Allow this browser?" prompts.
+          if (req.method === 'POST' && req.path === '/api/phone/sync-master') {
+            const body = req.body ? JSON.parse(req.body) : {};
+            if (body.content) {
+              store.applyMergeableChanges(body.content);
+            }
+            const res = jsonResponse(200, {
+              content: store.getMergeableContent(),
+              pending: approval.listPendingRequests(),
+              approved: approval.listApprovedDevices(),
+              logs: approval.getLogs(),
+            });
+            socket.write(serializeHttpResponse(res));
+            socket.end();
+            return;
+          }
+
+          // Control endpoints for inspecting or approving pending browser requests
           if (req.method === 'GET' && req.path === '/api/sim/pending') {
             const res = jsonResponse(200, {
               pending: approval.listPendingRequests(),
@@ -136,6 +166,14 @@ export function startPhoneSimServer(options?: PhoneSimOptions) {
             const res = updated
               ? jsonResponse(200, updated)
               : jsonResponse(404, { error: 'Request not found' });
+            socket.write(serializeHttpResponse(res));
+            socket.end();
+            return;
+          }
+          if (req.method === 'POST' && req.path === '/api/sim/revoke') {
+            const body = req.body ? JSON.parse(req.body) : {};
+            approval.revokeToken(String(body.token ?? ''));
+            const res = jsonResponse(200, { ok: true });
             socket.write(serializeHttpResponse(res));
             socket.end();
             return;
@@ -180,16 +218,42 @@ export function startPhoneSimServer(options?: PhoneSimOptions) {
   });
 }
 
-// Run directly when executed via `npm run sim`
+function getLocalLanIps(): string[] {
+  const nets = os.networkInterfaces();
+  const results: string[] = [];
+  for (const entries of Object.values(nets)) {
+    if (!entries) continue;
+    for (const netInfo of entries) {
+      if (netInfo.family === 'IPv4' && !netInfo.internal) {
+        results.push(netInfo.address);
+      }
+    }
+  }
+  return results;
+}
+
 const isMain =
   typeof process !== 'undefined' &&
   process.argv[1] &&
   process.argv[1].endsWith('index.ts');
 
 if (isMain) {
-  startPhoneSimServer().then(({ port }) => {
-    console.log(
-      `[phone-sim] iPhone master simulator listening on http://127.0.0.1:${port}`
-    );
+  const isBridge = process.argv.includes('--bridge');
+  startPhoneSimServer({ statelessBridge: isBridge }).then(({ port }) => {
+    const ips = getLocalLanIps();
+    if (isBridge) {
+      console.log(
+        `[bridge] Stateless Memory Bridge running on http://127.0.0.1:${port}`
+      );
+      for (const ip of ips) {
+        console.log(
+          `[bridge] -> In your iPhone Expo Go app (Sync & Backup tab), enter Bridge URL: http://${ip}:${port}`
+        );
+      }
+    } else {
+      console.log(
+        `[phone-sim] iPhone master simulator listening on http://127.0.0.1:${port}`
+      );
+    }
   });
 }

@@ -15,12 +15,11 @@ A single-user personal finance app for **iOS, macOS (PWA / Add to Dock), and Web
   3. **On tab hide/close** via `fetch(..., { keepalive: true })` with a `beforeunload` warning if unsynced changes failed to reach the phone.
 - **Layer 5 — Local Network Server (`packages/http-lite`, `apps/app/src/server`, `apps/phone-sim`)**:
   - Streaming HTTP/1.1 parser ([`parser.ts`](packages/http-lite/src/parser.ts)), **"Allow this browser?"** phone approval manager ([`approval.ts`](packages/http-lite/src/approval.ts)), and router ([`router.ts`](packages/http-lite/src/router.ts)).
-  - Native iOS TCP server using `react-native-tcp-socket` ([`lanServer.native.ts`](apps/app/src/server/lanServer.native.ts)).
-  - Node simulator ([`apps/phone-sim/src/index.ts`](apps/phone-sim/src/index.ts)) for running and testing the iPhone server on Linux.
+  - Native iOS TCP server (`react-native-tcp-socket` in [`lanServer.native.ts`](apps/app/src/server/lanServer.native.ts)) that serves both the compiled Web App (`GET /`) and the sync endpoints (`/api/*`) directly from your iPhone over Wi-Fi or Personal Hotspot.
 
 ---
 
-## Development & Testing (Linux / macOS)
+## Development & Testing
 
 ```bash
 # 1. Install dependencies
@@ -31,87 +30,63 @@ npm test
 
 # 3. Typecheck all workspaces
 npm run typecheck
-
-# 4. Start the iPhone simulator server (listens on http://127.0.0.1:8787)
-npm run sim
-
-# 5. In another terminal, start the Expo web app in dev mode
-npm run web
 ```
 
 ---
 
-## Building & Deploying
+## Deploying to Your iPhone with a Free Apple ID + SideStore ($0)
 
-### Step 1: Build & Embed the Production Web App
+Because **SideStore** signs `.ipa` files directly on your iPhone using your **free personal Apple ID** and automatically refreshes the 7-day certificate over Wi-Fi, you never need a paid ($99/yr) Apple Developer account.
 
-Before building the iOS app, compile the production web bundle and embed it directly into the iPhone's local network server so your iPhone can serve the web app with zero external hosting:
+### Step 1: Build `MoneyManager-SideStore.ipa`
 
+You can build the `.ipa` either **locally on your Mac** or **from Linux using GitHub Actions' free macOS runner**:
+
+#### Way A: On Your Mac (One Command)
+Make sure Xcode is installed, then from the repository root run:
 ```bash
-npm run build:web-embed
+npm install
+npm run build:ipa
 ```
+This runs [`scripts/build-sidestore-ipa.sh`](scripts/build-sidestore-ipa.sh), which:
+1. Compiles and embeds the production Web UI into [`apps/app/src/server/webAssets.ts`](apps/app/src/server/webAssets.ts),
+2. Generates the native iOS project (`npx expo prebuild --platform ios`),
+3. Compiles the Release iOS `.app` bundle via `xcodebuild` (with `CODE_SIGNING_ALLOWED=NO`, since SideStore signs it on your phone),
+4. Outputs **`MoneyManager-SideStore.ipa`** in the repo root.
 
-What this command does:
-1. Runs `expo export -p web` in `apps/app`, producing the static production bundle in `apps/app/dist/`.
-2. Runs [`scripts/embed-web.ts`](scripts/embed-web.ts), which packages `apps/app/dist/` into [`apps/app/src/server/webAssets.ts`](apps/app/src/server/webAssets.ts).
-
-*(Optional)* If you only want the standalone static web files in `apps/app/dist/` without regenerating `webAssets.ts`:
-
-```bash
-npm run build:web
-```
+#### Way B: From Linux via GitHub Actions (No Local Mac Needed)
+1. Push this repository to GitHub.
+2. In your GitHub repository, open the **Actions** tab → **Build SideStore iOS IPA** ([`.github/workflows/build-ios-ipa.yml`](.github/workflows/build-ios-ipa.yml)) → click **Run workflow**.
+3. Download the **`MoneyManager-SideStore-IPA`** artifact once the workflow finishes and unzip it to get `MoneyManager-SideStore.ipa`.
 
 ---
 
-### Step 2: Build & Install on Your iPhone
+### Step 2: Set Up SideStore on Your iPhone (One-Time Setup)
 
-Because the iPhone app hosts a native TCP HTTP server (`react-native-tcp-socket`), it requires a compiled iOS build rather than the generic Expo Go app. Choose either **Option A (Mac + Xcode)** or **Option B (Linux + EAS Cloud Build)**.
-
-#### Option A: Build Locally on a Mac with Xcode (Free)
-
-1. Copy or clone this repository onto your Mac and run:
-   ```bash
-   npm install
-   npm run build:web-embed
-   ```
-2. Generate the native iOS project (`apps/app/ios`) and install onto your plugged-in iPhone:
-   ```bash
-   cd apps/app
-   npx expo prebuild --platform ios
-   npx expo run:ios --device
-   ```
-3. If prompted in Xcode for code signing:
-   - Open `apps/app/ios/*.xcworkspace` in Xcode.
-   - Under **Signing & Capabilities → Team**, select your personal Apple ID.
-   - On your iPhone, enable **Settings → Privacy & Security → Developer Mode** and trust your developer certificate under **Settings → General → VPN & Device Management**.
-   - *(Note: Free Apple ID provisioning profiles expire after 7 days; re-running `npx expo run:ios --device` refreshes the install. A paid Apple Developer account removes the 7-day limit.)*
-
-#### Option B: Build from Linux via Expo Cloud (EAS Build)
-
-If you want to build directly from Linux without a Mac, Expo's cloud builders will compile and sign the iOS `.ipa` (requires an Apple Developer account):
-
-```bash
-# 1. Make sure the web bundle is embedded
-npm run build:web-embed
-
-# 2. Log in to Expo
-npx eas-cli login
-
-# 3. Trigger an internal-distribution iOS build using apps/app/eas.json
-cd apps/app
-npx eas-cli build --platform ios --profile preview
-```
-
-When the build completes, EAS displays a **QR code** in the terminal. Scan it with your iPhone camera to install **Money Manager**.
+If you don't already have SideStore installed on your iPhone:
+1. Follow the official guide at **[sidestore.io](https://sidestore.io)**:
+   - Enable **Settings → Privacy & Security → Developer Mode** on your iPhone.
+   - Install **SideServer** on your Mac/PC once to sideload the **SideStore** app onto your iPhone and generate your device's pairing file.
+   - Install the **StosVPN** (or WireGuard local loopback profile) from the App Store as instructed by SideStore so SideStore can refresh certificates on-device over Wi-Fi without a computer.
+   - Sign in to SideStore on your iPhone with your **free Apple ID**.
 
 ---
 
-### Step 3: Using the Web App on macOS / PC
+### Step 3: Install Money Manager in SideStore
 
-1. Open **Money Manager** on your iPhone, go to the **Sync & Backup** tab, and tap **Start Web Access Server (Port 8787)**.
-2. Connect your Mac or PC to the **same Wi-Fi network** or your **iPhone's Personal Hotspot** (on Hotspot, the iPhone address is typically `http://172.20.10.1:8787`).
-3. Open the URL shown on your iPhone in Safari or Chrome.
-4. On your iPhone, tap **Allow** on the **"Allow this browser to connect?"** banner.
-5. **Install as a macOS App**:
-   - **Safari**: Click **File → Add to Dock...**
-   - **Chrome / Brave**: Click ** Menu (⋮) → Cast, save, and share → Install page as app...**
+1. Send **`MoneyManager-SideStore.ipa`** to your iPhone (via AirDrop, iCloud Drive, or a local file transfer) and save it to the **Files** app.
+2. Open **SideStore** on your iPhone → go to **My Apps** → tap the **`+`** button in the top-left corner.
+3. Select **`MoneyManager-SideStore.ipa`**.
+4. SideStore will sign and install **Money Manager** onto your iPhone Home Screen, and automatically refresh its 7-day certificate in the background whenever you're on Wi-Fi.
+
+---
+
+### Step 4: Daily Usage (iPhone + Mac Browser)
+
+1. **On the go**: Open **Money Manager** from your iPhone Home Screen. All data is saved locally in your iPhone's SQLite database (`money-manager-vault.db`).
+2. **At your desk (Mac / PC)**:
+   - In Money Manager on your iPhone, open the **Sync & Backup** tab and tap **Start Direct iPhone Server (Port 8787)**.
+   - Connect your Mac and iPhone to the **same Wi-Fi** (or your **iPhone's Personal Hotspot**, where the phone's IP is `172.20.10.1`).
+   - Open the URL displayed on your iPhone (e.g. `http://192.168.1.23:8787` or `http://172.20.10.1:8787`) in Safari or Chrome.
+   - Tap **Allow** on the **"Allow this browser to connect?"** prompt on your iPhone.
+   - *(Optional on Mac)* Click **Safari → File → Add to Dock...** to create a dedicated macOS Dock icon.

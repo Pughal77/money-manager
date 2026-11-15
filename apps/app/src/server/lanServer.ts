@@ -13,6 +13,7 @@ export interface PhoneLanServerInterface {
   };
   subscribe: (listener: () => void) => () => void;
   getState: () => LanServerSnapshot;
+  startBridgeLink: (store: MergeableStore, bridgeUrl: string) => Promise<void>;
   start: (store: MergeableStore, port?: number) => Promise<string>;
   stop: () => void;
 }

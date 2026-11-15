@@ -10,9 +10,11 @@
     "build": "npm run build --workspaces --if-present",
     "build:web": "npm --workspace=@mm/app run export:web",
     "build:web-embed": "npm --workspace=@mm/app run export:web && tsx scripts/embed-web.ts",
+    "build:ipa": "bash scripts/build-sidestore-ipa.sh",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "bridge": "tsx apps/phone-sim/src/index.ts --bridge",
     "sim": "npm --workspace=@mm/phone-sim run start",
     "web": "npm --workspace=@mm/app run web",
     "ios": "npm --workspace=@mm/app run ios"
