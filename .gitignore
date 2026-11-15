@@ -7,5 +7,6 @@ web-build/
 *.db-wal
 *.db-shm
 .sim-data.json
+MoneyManager-SideStore.ipa
 .DS_Store
 *.log

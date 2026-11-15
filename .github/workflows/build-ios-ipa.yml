@@ -1,0 +1,30 @@
+name: Build SideStore iOS IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build SideStore IPA
+        run: npm run build:ipa
+
+      - name: Upload MoneyManager-SideStore.ipa Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoneyManager-SideStore-IPA
+          path: MoneyManager-SideStore.ipa
+          retention-days: 14
