@@ -7,11 +7,12 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { formatCents, type Cents } from '@mm/core';
+import { formatAmountPlain, type Cents } from '@mm/core';
 import { useVault } from '../data/VaultContext';
 import { webSyncClient } from '../platform/client';
 import { phoneLanServer } from '../server/lanServer';
-import { colors, radius, spacing } from './theme';
+import { AppIcon } from './icons';
+import { radius, spacing, useTheme } from './theme';
 
 export function Card({
   children,
@@ -20,7 +21,22 @@ export function Card({
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
-  return <View style={[styles.card, style]}>{children}</View>;
+  const { colors, isDark } = useTheme();
+  return (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          borderWidth: isDark ? 0 : 1,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
 }
 
 export function AmountText({
@@ -32,37 +48,35 @@ export function AmountText({
   kind?: 'income' | 'expense' | 'transfer' | 'neutral';
   size?: number;
 }) {
+  const { colors } = useTheme();
   let color = colors.text;
-  let prefix = '';
   if (kind === 'income') {
     color = colors.income;
-    prefix = '+';
   } else if (kind === 'expense') {
     color = colors.expense;
-    prefix = '-';
   } else if (kind === 'transfer') {
     color = colors.transfer;
   }
 
   return (
     <Text style={[styles.amount, { color, fontSize: size }]}>
-      {prefix}
-      {formatCents(Math.abs(cents))}
+      {formatAmountPlain(cents)}
     </Text>
   );
 }
 
 export function ProgressBar({
   progress,
-  color = colors.primary,
+  color,
 }: {
   progress: number;
   color?: string;
 }) {
+  const { colors } = useTheme();
   const clamped = Math.max(0, Math.min(1, progress));
-  const barColor = progress > 1 ? colors.expense : color;
+  const barColor = progress > 1 ? colors.expense : (color ?? colors.primary);
   return (
-    <View style={styles.progressTrack}>
+    <View style={[styles.progressTrack, { backgroundColor: colors.surfaceElevated }]}>
       <View
         style={[
           styles.progressFill,
@@ -84,13 +98,14 @@ export function Button({
   variant?: 'primary' | 'secondary' | 'danger';
   disabled?: boolean;
 }) {
+  const { colors } = useTheme();
   const bg =
     variant === 'primary'
       ? colors.primary
       : variant === 'danger'
         ? colors.expense
         : colors.surfaceElevated;
-  const fg = variant === 'primary' ? '#090d16' : colors.text;
+  const fg = variant === 'primary' ? '#FFFFFF' : colors.text;
 
   return (
     <Pressable
@@ -106,6 +121,26 @@ export function Button({
   );
 }
 
+export function FloatingAddButton({ onPress }: { onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.fab,
+        {
+          backgroundColor: colors.primary,
+          transform: [{ scale: pressed ? 0.94 : 1 }],
+        },
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel="Add transaction"
+    >
+      <AppIcon name="plus" size={26} color="#FFFFFF" />
+    </Pressable>
+  );
+}
+
 /**
  * Top status banner:
  * - On Web: shows live connection status to the iPhone, pending changes count, and the [Sync] button.
@@ -113,6 +148,7 @@ export function Button({
  */
 export function SyncTopBar() {
   const { role, webState, lanState } = useVault();
+  const { colors } = useTheme();
 
   if (role === 'web-thin-client') {
     const statusDotColor =
@@ -135,17 +171,24 @@ export function SyncTopBar() {
               ? `Sync paused: ${webState.lastError}`
               : webState.pendingChanges > 0
                 ? `${webState.pendingChanges} unsynced change(s)`
-                : 'Synced with iPhone (Memory-only session)';
+                : 'Synced with iPhone';
 
     return (
-      <View style={styles.topBar}>
+      <View
+        style={[
+          styles.topBar,
+          { backgroundColor: colors.surface, borderBottomColor: colors.border },
+        ]}
+      >
         <View style={styles.topBarLeft}>
           <View style={[styles.dot, { backgroundColor: statusDotColor }]} />
-          <Text style={styles.topBarText}>{statusLabel}</Text>
+          <Text style={[styles.topBarText, { color: colors.textSecondary }]}>
+            {statusLabel}
+          </Text>
         </View>
         <Pressable
           onPress={() => void webSyncClient.syncNow()}
-          style={styles.syncNowBtn}
+          style={[styles.syncNowBtn, { backgroundColor: colors.primary }]}
         >
           <Text style={styles.syncNowBtnText}>Sync Now</Text>
         </Pressable>
@@ -160,12 +203,17 @@ export function SyncTopBar() {
 
   const req = lanState.pendingRequests[0];
   return (
-    <View style={styles.approvalBanner}>
+    <View
+      style={[
+        styles.approvalBanner,
+        { backgroundColor: colors.surface, borderBottomColor: colors.primary },
+      ]}
+    >
       <View style={{ flex: 1 }}>
-        <Text style={styles.approvalTitle}>
+        <Text style={[styles.approvalTitle, { color: colors.text }]}>
           Allow "{req.deviceName}" to connect?
         </Text>
-        <Text style={styles.approvalSub}>
+        <Text style={[styles.approvalSub, { color: colors.textSecondary }]}>
           A browser on your local network wants to view and sync your finances.
         </Text>
       </View>
@@ -189,11 +237,8 @@ export function SyncTopBar() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     marginBottom: spacing.md,
   },
   amount: {
@@ -202,7 +247,6 @@ const styles = StyleSheet.create({
   },
   progressTrack: {
     height: 8,
-    backgroundColor: colors.surfaceElevated,
     borderRadius: radius.pill,
     overflow: 'hidden',
     marginTop: spacing.xs,
@@ -222,12 +266,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 22,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   topBar: {
-    backgroundColor: '#0f172a',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.lg,
-    paddingVertical: 10,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -239,42 +296,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dot: {
-    width: 9,
-    height: 9,
-    borderRadius: 9,
+    width: 8,
+    height: 8,
+    borderRadius: 8,
   },
   topBarText: {
-    color: colors.textSecondary,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
   },
   syncNowBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: radius.pill,
   },
   syncNowBtnText: {
-    color: '#090d16',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
   approvalBanner: {
-    backgroundColor: '#1e293b',
     borderBottomWidth: 2,
-    borderBottomColor: colors.primary,
     padding: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
   approvalTitle: {
-    color: colors.text,
     fontWeight: '700',
     fontSize: 15,
   },
   approvalSub: {
-    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 2,
   },

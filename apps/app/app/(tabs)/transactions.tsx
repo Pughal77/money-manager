@@ -9,140 +9,158 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
-  deleteTransaction,
-  listAccounts,
   listCategories,
   listTransactions,
   type TransactionKind,
 } from '@mm/core';
 import { useVault } from '../../src/data/VaultContext';
-import { AmountText, Button, Card } from '../../src/ui/components';
-import { colors, radius, spacing } from '../../src/ui/theme';
+import { FloatingAddButton } from '../../src/ui/components';
+import { AppIcon } from '../../src/ui/icons';
+import {
+  groupTransactionsByDay,
+  TransactionDayCard,
+} from '../../src/ui/TransactionDayGroup';
+import { radius, spacing, useTheme } from '../../src/ui/theme';
 
 export default function TransactionsScreen() {
   const { store } = useVault();
+  const { colors, isDark } = useTheme();
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<TransactionKind | undefined>();
 
   const txs = listTransactions(store, { search, kind: kindFilter });
-  const categories = new Map(listCategories(store).map((c) => [c.id, c]));
-  const accounts = new Map(listAccounts(store).map((a) => [a.id, a]));
+  const dayGroups = groupTransactionsByDay(txs);
+  const categoryMap = new Map(listCategories(store).map((c) => [c.id, c]));
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.topRow}>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+      <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={10}
+          style={styles.backBtn}
+        >
+          <AppIcon name="chevron-left" size={22} color={colors.text} />
+        </Pressable>
+        <Text style={[styles.topTitle, { color: colors.text }]}>
+          All Transactions
+        </Text>
+        <View style={styles.backBtn} />
+      </View>
+
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Search notes or category..."
+          placeholder="Search notes, category, or subcategory..."
           placeholderTextColor={colors.textMuted}
-          style={styles.searchInput}
+          style={[
+            styles.searchInput,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderWidth: isDark ? 0 : 1,
+              color: colors.text,
+            },
+          ]}
         />
-        <Button
-          label="+ Add"
-          onPress={() => router.push('/transaction/new')}
-        />
-      </View>
 
-      <View style={styles.filterRow}>
-        {(['all', 'expense', 'income', 'transfer'] as const).map((k) => {
-          const active = (k === 'all' && !kindFilter) || kindFilter === k;
-          return (
-            <Pressable
-              key={k}
-              onPress={() => setKindFilter(k === 'all' ? undefined : k)}
-              style={[styles.chip, active && styles.chipActive]}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                {k.toUpperCase()}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <Card>
-        {txs.length === 0 ? (
-          <Text style={styles.empty}>No matching transactions.</Text>
-        ) : (
-          txs.map((tx) => {
-            const cat = categories.get(tx.categoryId);
-            const acc = accounts.get(tx.accountId);
+        <View style={styles.filterRow}>
+          {(['all', 'expense', 'income'] as const).map((k) => {
+            const active = (k === 'all' && !kindFilter) || kindFilter === k;
             return (
-              <View key={tx.id} style={styles.row}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>
-                    {tx.note || cat?.name || tx.kind.toUpperCase()}
-                  </Text>
-                  <Text style={styles.rowSub}>
-                    {tx.date} · {acc?.name ?? 'Account'} · {cat?.name ?? 'Transfer'}
-                  </Text>
-                </View>
-                <View style={styles.rightActions}>
-                  <AmountText cents={tx.amount} kind={tx.kind} size={15} />
-                  <Pressable
-                    onPress={() => deleteTransaction(store, tx.id)}
-                    style={styles.deleteBtn}
-                  >
-                    <Text style={styles.deleteText}>Delete</Text>
-                  </Pressable>
-                </View>
-              </View>
+              <Pressable
+                key={k}
+                onPress={() => setKindFilter(k === 'all' ? undefined : k)}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: active ? colors.primary : colors.surface,
+                    borderColor: active ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: active ? '#FFFFFF' : colors.textSecondary },
+                  ]}
+                >
+                  {k === 'all' ? 'All' : k === 'expense' ? 'Expense' : 'Income'}
+                </Text>
+              </Pressable>
             );
-          })
+          })}
+        </View>
+
+        {dayGroups.length === 0 ? (
+          <View
+            style={[
+              styles.emptyCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderWidth: isDark ? 0 : 1,
+              },
+            ]}
+          >
+            <Text style={{ color: colors.textMuted, fontSize: 14 }}>
+              There is no history.
+            </Text>
+          </View>
+        ) : (
+          dayGroups.map((group) => (
+            <TransactionDayCard
+              key={group.date}
+              group={group}
+              categoryMap={categoryMap}
+              onSelectTransaction={(tx) =>
+                router.push(`/transaction/new?id=${encodeURIComponent(tx.id)}`)
+              }
+            />
+          ))
         )}
-      </Card>
-    </ScrollView>
+      </ScrollView>
+
+      <FloatingAddButton onPress={() => router.push('/transaction/new')} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.lg, maxWidth: 920, width: '100%', alignSelf: 'center' },
-  topRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  screen: { flex: 1 },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  backBtn: { width: 36, alignItems: 'flex-start' },
+  topTitle: { fontSize: 18, fontWeight: '600' },
+  scroll: { flex: 1 },
+  content: { padding: 16, paddingBottom: 96 },
   searchInput: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    color: colors.text,
+    paddingVertical: 12,
     fontSize: 15,
+    marginBottom: 12,
   },
-  filterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  filterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: 16 },
   chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
   },
-  chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  chipText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
-  chipTextActive: { color: '#090d16' },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  chipText: { fontSize: 13, fontWeight: '600' },
+  emptyCard: {
+    borderRadius: radius.lg,
+    paddingVertical: 32,
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    justifyContent: 'center',
   },
-  rowTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  rowSub: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
-  rightActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  deleteBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceElevated,
-  },
-  deleteText: { color: colors.expense, fontSize: 11, fontWeight: '600' },
-  empty: { color: colors.textMuted, textAlign: 'center', paddingVertical: spacing.lg },
 });

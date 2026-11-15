@@ -2,40 +2,67 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { VaultProvider } from '../src/data/VaultContext';
 import { SyncTopBar } from '../src/ui/components';
-import { colors } from '../src/ui/theme';
+import { useTheme } from '../src/ui/theme';
+
+function ThemedAppShell() {
+  const { colors, isDark } = useTheme();
+
+  return (
+    <SafeAreaView
+      style={[styles.outerContainer, { backgroundColor: colors.bg }]}
+      edges={['top', 'left', 'right']}
+    >
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <View style={[styles.centeredColumn, { backgroundColor: colors.bg }]}>
+        <SyncTopBar />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: colors.bg },
+          }}
+        >
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="transaction/new"
+            options={{
+              headerShown: false,
+              presentation: 'transparentModal',
+              animation: 'slide_from_bottom',
+            }}
+          />
+          <Stack.Screen
+            name="category/[id]"
+            options={{
+              headerShown: false,
+            }}
+          />
+        </Stack>
+      </View>
+    </SafeAreaView>
+  );
+}
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <VaultProvider>
-        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-          <StatusBar style="light" />
-          <SyncTopBar />
-          <Stack
-            screenOptions={{
-              headerStyle: { backgroundColor: colors.bg },
-              headerTintColor: colors.text,
-              contentStyle: { backgroundColor: colors.bg },
-            }}
-          >
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="transaction/new"
-              options={{ title: 'New Transaction', presentation: 'modal' }}
-            />
-          </Stack>
-        </SafeAreaView>
+        <ThemedAppShell />
       </VaultProvider>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
-    backgroundColor: colors.bg,
+  },
+  centeredColumn: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 520,
+    alignSelf: 'center',
   },
 });

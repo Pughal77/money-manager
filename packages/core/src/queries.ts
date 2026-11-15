@@ -1,14 +1,21 @@
 import type { MergeableStore } from 'tinybase';
 import type { Cents } from './money';
-import type {
-  Account,
-  AccountType,
-  Budget,
-  Category,
-  CategoryKind,
-  Transaction,
-  TransactionKind,
+import {
+  parseSubcategoriesJson,
+  type Account,
+  type AccountType,
+  type Budget,
+  type Category,
+  type CategoryKind,
+  type ThemeMode,
+  type Transaction,
+  type TransactionKind,
 } from './schema';
+
+export function getThemeMode(store: MergeableStore): ThemeMode {
+  const val = String(store.getValue('theme') ?? 'dark');
+  return val === 'light' ? 'light' : 'dark';
+}
 
 export function listAccounts(store: MergeableStore): Account[] {
   const table = store.getTable('accounts');
@@ -20,7 +27,7 @@ export function listAccounts(store: MergeableStore): Account[] {
       name: String(row.name ?? ''),
       type: (row.type as AccountType) ?? 'checking',
       openingBalance: Number(row.openingBalance ?? 0),
-      color: String(row.color ?? '#38bdf8'),
+      color: String(row.color ?? '#F3A833'),
       createdAt: String(row.createdAt ?? ''),
       deleted: Boolean(row.deleted),
     });
@@ -39,21 +46,87 @@ export function listCategories(store: MergeableStore, kind?: CategoryKind): Cate
       id,
       name: String(row.name ?? ''),
       kind: rowKind,
-      icon: String(row.icon ?? 'tag'),
-      color: String(row.color ?? '#a78bfa'),
+      icon: String(row.icon ?? 'dots'),
+      color: String(row.color ?? '#F29B9B'),
+      subcategories: parseSubcategoriesJson(row.subcategories),
+      sortOrder: Number(row.sortOrder ?? 99),
       createdAt: String(row.createdAt ?? ''),
       deleted: Boolean(row.deleted),
     });
   }
-  return results.sort((a, b) => a.name.localeCompare(b.name));
+  return results.sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+export function getCategoryById(store: MergeableStore, id: string): Category | undefined {
+  if (!id || !store.hasRow('categories', id)) return undefined;
+  const row = store.getRow('categories', id);
+  if (row.deleted) return undefined;
+  return {
+    id,
+    name: String(row.name ?? ''),
+    kind: (row.kind as CategoryKind) ?? 'expense',
+    icon: String(row.icon ?? 'dots'),
+    color: String(row.color ?? '#F29B9B'),
+    subcategories: parseSubcategoriesJson(row.subcategories),
+    sortOrder: Number(row.sortOrder ?? 99),
+    createdAt: String(row.createdAt ?? ''),
+    deleted: Boolean(row.deleted),
+  };
+}
+
+/**
+ * Formats the display title for a transaction matching the reference UI:
+ * - Income transactions: `income > Salary` (or `income > ${subcategory}`)
+ * - Expense transactions: `Food > Eating out` (or `Online shopping > Other`)
+ * - Uncategorized: `Uncategorized > Uncategorized`
+ */
+export function formatTransactionTitle(category: Category | undefined, tx: Transaction): string {
+  if (tx.kind === 'transfer') {
+    return 'Transfer';
+  }
+  if (!category) {
+    return tx.kind === 'income' ? 'income > Other' : 'Uncategorized > Uncategorized';
+  }
+  if (tx.kind === 'income') {
+    const sub = tx.subcategory && tx.subcategory !== category.name ? tx.subcategory : category.name;
+    return `income > ${sub}`;
+  }
+  const sub = tx.subcategory || category.subcategories[0] || 'Other';
+  return `${category.name} > ${sub}`;
 }
 
 export interface TransactionFilter {
   accountId?: string;
   categoryId?: string;
+  subcategory?: string;
   kind?: TransactionKind;
   month?: string; // YYYY-MM prefix
+  date?: string; // exact YYYY-MM-DD
+  startDate?: string; // inclusive YYYY-MM-DD
+  endDate?: string; // inclusive YYYY-MM-DD
   search?: string;
+}
+
+export function getTransactionById(store: MergeableStore, id: string): Transaction | undefined {
+  if (!id || !store.hasRow('transactions', id)) return undefined;
+  const row = store.getRow('transactions', id);
+  if (row.deleted) return undefined;
+  return {
+    id,
+    accountId: String(row.accountId ?? ''),
+    toAccountId: String(row.toAccountId ?? ''),
+    categoryId: String(row.categoryId ?? ''),
+    subcategory: String(row.subcategory ?? ''),
+    kind: (row.kind as TransactionKind) ?? 'expense',
+    amount: Number(row.amount ?? 0),
+    date: String(row.date ?? ''),
+    note: String(row.note ?? ''),
+    createdAt: String(row.createdAt ?? ''),
+    deleted: Boolean(row.deleted),
+  };
 }
 
 export function listTransactions(store: MergeableStore, filter?: TransactionFilter): Transaction[] {
@@ -69,6 +142,7 @@ export function listTransactions(store: MergeableStore, filter?: TransactionFilt
       accountId: String(row.accountId ?? ''),
       toAccountId: String(row.toAccountId ?? ''),
       categoryId: String(row.categoryId ?? ''),
+      subcategory: String(row.subcategory ?? ''),
       kind: (row.kind as TransactionKind) ?? 'expense',
       amount: Number(row.amount ?? 0),
       date: String(row.date ?? ''),
@@ -83,17 +157,33 @@ export function listTransactions(store: MergeableStore, filter?: TransactionFilt
     if (filter?.categoryId && tx.categoryId !== filter.categoryId) {
       continue;
     }
+    if (filter?.subcategory !== undefined && filter.subcategory !== '') {
+      const catRow = categories[tx.categoryId];
+      const catSubs = parseSubcategoriesJson(catRow?.subcategories);
+      const effectiveSub = tx.subcategory || catSubs[0] || 'Other';
+      if (effectiveSub !== filter.subcategory) continue;
+    }
     if (filter?.kind && tx.kind !== filter.kind) {
       continue;
     }
     if (filter?.month && !tx.date.startsWith(filter.month)) {
       continue;
     }
+    if (filter?.date && tx.date !== filter.date) {
+      continue;
+    }
+    if (filter?.startDate && tx.date < filter.startDate) {
+      continue;
+    }
+    if (filter?.endDate && tx.date > filter.endDate) {
+      continue;
+    }
     if (searchLower) {
       const catName = String(categories[tx.categoryId]?.name ?? '').toLowerCase();
+      const subMatch = tx.subcategory.toLowerCase().includes(searchLower);
       const noteMatch = tx.note.toLowerCase().includes(searchLower);
       const catMatch = catName.includes(searchLower);
-      if (!noteMatch && !catMatch) continue;
+      if (!noteMatch && !catMatch && !subMatch) continue;
     }
     results.push(tx);
   }
@@ -155,6 +245,55 @@ export function getMonthlySummary(store: MergeableStore, month: string): Monthly
   return { month, income, expense, net: income - expense };
 }
 
+export interface PeriodSummary {
+  startDate: string;
+  endDate: string;
+  income: Cents;
+  expense: Cents;
+  net: Cents;
+}
+
+export function getPeriodSummary(
+  store: MergeableStore,
+  startDate: string,
+  endDate: string
+): PeriodSummary {
+  const txs = listTransactions(store, { startDate, endDate });
+  let income = 0;
+  let expense = 0;
+  for (const tx of txs) {
+    if (tx.kind === 'income') income += tx.amount;
+    else if (tx.kind === 'expense') expense += tx.amount;
+  }
+  return { startDate, endDate, income, expense, net: income - expense };
+}
+
+export interface DailyCalendarTotal {
+  date: string; // YYYY-MM-DD
+  income: Cents;
+  expense: Cents;
+}
+
+export function getDailyCalendarTotals(
+  store: MergeableStore,
+  startDate: string,
+  endDate: string
+): Record<string, DailyCalendarTotal> {
+  const txs = listTransactions(store, { startDate, endDate });
+  const map: Record<string, DailyCalendarTotal> = {};
+  for (const tx of txs) {
+    if (!map[tx.date]) {
+      map[tx.date] = { date: tx.date, income: 0, expense: 0 };
+    }
+    if (tx.kind === 'income') {
+      map[tx.date].income += tx.amount;
+    } else if (tx.kind === 'expense') {
+      map[tx.date].expense += tx.amount;
+    }
+  }
+  return map;
+}
+
 export interface BudgetStatus extends Budget {
   categoryName: string;
   categoryColor: string;
@@ -206,13 +345,36 @@ export function getBudgetStatuses(store: MergeableStore, month: string): BudgetS
 export interface CategoryBreakdownItem {
   categoryId: string;
   categoryName: string;
+  icon: string;
   color: string;
   amount: Cents;
   percentage: number; // 0..100
 }
 
-export function getCategoryBreakdown(store: MergeableStore, month: string): CategoryBreakdownItem[] {
-  const txs = listTransactions(store, { month, kind: 'expense' });
+export function getCategoryBreakdown(
+  store: MergeableStore,
+  month: string,
+  kind: CategoryKind = 'expense'
+): CategoryBreakdownItem[] {
+  const txs = listTransactions(store, { month, kind });
+  return buildCategoryBreakdown(store, txs, kind);
+}
+
+export function getCategoryBreakdownByRange(
+  store: MergeableStore,
+  startDate: string,
+  endDate: string,
+  kind: CategoryKind = 'expense'
+): CategoryBreakdownItem[] {
+  const txs = listTransactions(store, { startDate, endDate, kind });
+  return buildCategoryBreakdown(store, txs, kind);
+}
+
+function buildCategoryBreakdown(
+  store: MergeableStore,
+  txs: Transaction[],
+  kind: CategoryKind
+): CategoryBreakdownItem[] {
   const categories = listCategories(store);
   const catMap = new Map(categories.map((c) => [c.id, c]));
 
@@ -230,12 +392,62 @@ export function getCategoryBreakdown(store: MergeableStore, month: string): Cate
     items.push({
       categoryId: catId,
       categoryName: cat?.name ?? 'Uncategorized',
-      color: cat?.color ?? '#64748b',
+      icon: cat?.icon ?? (kind === 'income' ? 'banknotes' : 'question'),
+      color: cat?.color ?? (kind === 'income' ? '#FCE07D' : '#CBD5E1'),
       amount,
       percentage: total > 0 ? Math.round((amount / total) * 1000) / 10 : 0,
     });
   }
   return items.sort((a, b) => b.amount - a.amount);
+}
+
+export interface SubcategoryBreakdownItem {
+  subcategory: string;
+  color: string;
+  amount: Cents;
+  percentage: number;
+}
+
+export function getSubcategoryBreakdown(
+  store: MergeableStore,
+  categoryId: string,
+  startDate: string,
+  endDate: string
+): SubcategoryBreakdownItem[] {
+  const cat = getCategoryById(store, categoryId);
+  const txs = listTransactions(store, { categoryId, startDate, endDate });
+  const presetSubs = cat?.subcategories.length ? cat.subcategories : ['Other'];
+  const baseColor = cat?.color ?? '#F29B9B';
+
+  const sums = new Map<string, number>();
+  for (const sub of presetSubs) {
+    sums.set(sub, 0);
+  }
+
+  let total = 0;
+  for (const tx of txs) {
+    const sub = tx.subcategory || presetSubs[0] || 'Other';
+    sums.set(sub, (sums.get(sub) ?? 0) + tx.amount);
+    total += tx.amount;
+  }
+
+  const items: SubcategoryBreakdownItem[] = [];
+  for (const [subcategory, amount] of sums.entries()) {
+    items.push({
+      subcategory,
+      color: baseColor,
+      amount,
+      percentage: total > 0 ? Math.round((amount / total) * 1000) / 10 : 0,
+    });
+  }
+
+  // Sort active subcategories (> 0) by amount descending first, then preserve preset order for 0-amount rows
+  return items.sort((a, b) => {
+    if (a.amount > 0 && b.amount > 0) return b.amount - a.amount;
+    if (a.amount > 0) return -1;
+    if (b.amount > 0) return 1;
+    return 0;
+  });
 }
 
 export function getRecentMonthsTrend(store: MergeableStore, months: string[]): MonthlySummary[] {

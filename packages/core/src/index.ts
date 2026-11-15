@@ -4,3 +4,5 @@ export * from './schema';
 export * from './actions';
 export * from './queries';
 export * from './csv';
+export * from './uiMath';
+export * from './calculator';

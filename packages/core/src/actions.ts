@@ -1,7 +1,7 @@
 import type { MergeableStore } from 'tinybase';
 import { uuidv7 } from './id';
 import { assertIntegerCents, type Cents } from './money';
-import type { AccountType, CategoryKind, TransactionKind } from './schema';
+import type { AccountType, CategoryKind, ThemeMode, TransactionKind } from './schema';
 
 export interface CreateAccountInput {
   id?: string;
@@ -22,7 +22,7 @@ export function addAccount(store: MergeableStore, input: CreateAccountInput): st
     name,
     type: input.type,
     openingBalance: input.openingBalance,
-    color: input.color ?? '#38bdf8',
+    color: input.color ?? '#F3A833',
     createdAt: new Date().toISOString(),
     deleted: false,
   });
@@ -68,6 +68,8 @@ export interface CreateCategoryInput {
   kind: CategoryKind;
   icon?: string;
   color?: string;
+  subcategories?: string[];
+  sortOrder?: number;
 }
 
 export function addCategory(store: MergeableStore, input: CreateCategoryInput): string {
@@ -76,15 +78,50 @@ export function addCategory(store: MergeableStore, input: CreateCategoryInput): 
     throw new Error('Category name is required');
   }
   const id = input.id ?? uuidv7();
+  const subcats = input.subcategories ?? ['Other'];
   store.setRow('categories', id, {
     name,
     kind: input.kind,
-    icon: input.icon ?? 'tag',
-    color: input.color ?? '#a78bfa',
+    icon: input.icon ?? 'dots',
+    color: input.color ?? (input.kind === 'income' ? '#FCE07D' : '#F29B9B'),
+    subcategories: JSON.stringify(subcats),
+    sortOrder: input.sortOrder ?? 99,
     createdAt: new Date().toISOString(),
     deleted: false,
   });
   return id;
+}
+
+export function updateCategory(
+  store: MergeableStore,
+  id: string,
+  patch: Partial<Omit<CreateCategoryInput, 'id'>>
+): void {
+  if (!store.hasRow('categories', id)) {
+    throw new Error(`Category not found: ${id}`);
+  }
+  store.transaction(() => {
+    if (patch.name !== undefined) {
+      const trimmed = patch.name.trim();
+      if (!trimmed) throw new Error('Category name cannot be empty');
+      store.setCell('categories', id, 'name', trimmed);
+    }
+    if (patch.kind !== undefined) {
+      store.setCell('categories', id, 'kind', patch.kind);
+    }
+    if (patch.icon !== undefined) {
+      store.setCell('categories', id, 'icon', patch.icon);
+    }
+    if (patch.color !== undefined) {
+      store.setCell('categories', id, 'color', patch.color);
+    }
+    if (patch.subcategories !== undefined) {
+      store.setCell('categories', id, 'subcategories', JSON.stringify(patch.subcategories));
+    }
+    if (patch.sortOrder !== undefined) {
+      store.setCell('categories', id, 'sortOrder', patch.sortOrder);
+    }
+  });
 }
 
 export function deleteCategory(store: MergeableStore, id: string): void {
@@ -98,6 +135,7 @@ export interface CreateTransactionInput {
   accountId: string;
   toAccountId?: string;
   categoryId?: string;
+  subcategory?: string;
   kind: TransactionKind;
   amount: Cents;
   date: string; // YYYY-MM-DD
@@ -123,6 +161,7 @@ export function addTransaction(store: MergeableStore, input: CreateTransactionIn
     accountId: input.accountId,
     toAccountId: input.kind === 'transfer' ? (input.toAccountId ?? '') : '',
     categoryId: input.kind === 'transfer' ? '' : (input.categoryId ?? ''),
+    subcategory: input.kind === 'transfer' ? '' : (input.subcategory ?? '').trim(),
     kind: input.kind,
     amount: input.amount,
     date: input.date,
@@ -155,6 +194,9 @@ export function updateTransaction(
     }
     if (patch.categoryId !== undefined) {
       store.setCell('transactions', id, 'categoryId', patch.categoryId);
+    }
+    if (patch.subcategory !== undefined) {
+      store.setCell('transactions', id, 'subcategory', patch.subcategory.trim());
     }
     if (patch.kind !== undefined) {
       store.setCell('transactions', id, 'kind', patch.kind);
@@ -207,4 +249,8 @@ export function deleteBudget(store: MergeableStore, id: string): void {
   if (store.hasRow('budgets', id)) {
     store.setCell('budgets', id, 'deleted', true);
   }
+}
+
+export function setThemeMode(store: MergeableStore, mode: ThemeMode): void {
+  store.setValue('theme', mode);
 }

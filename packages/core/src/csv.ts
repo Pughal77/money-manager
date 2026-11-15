@@ -81,8 +81,10 @@ export function importBackupZip(
           store.setRow('categories', id, {
             name: String(rawRow.name ?? ''),
             kind: String(rawRow.kind || 'expense'),
-            icon: String(rawRow.icon || 'tag'),
-            color: String(rawRow.color || '#a78bfa'),
+            icon: String(rawRow.icon || 'dots'),
+            color: String(rawRow.color || '#F29B9B'),
+            subcategories: String(rawRow.subcategories || '["Other"]'),
+            sortOrder: Number(rawRow.sortOrder ?? 99),
             createdAt: String(rawRow.createdAt ?? ''),
             deleted: rawRow.deleted === 'true' || rawRow.deleted === '1',
           });
@@ -92,6 +94,7 @@ export function importBackupZip(
             accountId: String(rawRow.accountId ?? ''),
             toAccountId: String(rawRow.toAccountId ?? ''),
             categoryId: String(rawRow.categoryId ?? ''),
+            subcategory: String(rawRow.subcategory ?? ''),
             kind: String(rawRow.kind || 'expense'),
             amount: Number(rawRow.amount ?? 0),
             date: String(rawRow.date ?? ''),

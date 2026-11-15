@@ -1,153 +1,352 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import {
-  formatCents,
-  getAccountBalances,
-  getBudgetStatuses,
+  formatAmountPlain,
+  getCategoryBreakdown,
+  getMonthDateRange,
   getMonthlySummary,
-  getNetWorth,
   listCategories,
   listTransactions,
+  shiftYearMonth,
+  type DonutSliceInput,
 } from '@mm/core';
 import { useVault } from '../../src/data/VaultContext';
-import { AmountText, Button, Card, ProgressBar } from '../../src/ui/components';
-import { colors, spacing } from '../../src/ui/theme';
+import { webSyncClient } from '../../src/platform/client';
+import { phoneLanServer } from '../../src/server/lanServer';
+import { FloatingAddButton } from '../../src/ui/components';
+import { DonutChart } from '../../src/ui/DonutChart';
+import { AppIcon } from '../../src/ui/icons';
+import { PeriodHeader } from '../../src/ui/PeriodHeader';
+import { SettingsModal } from '../../src/ui/SettingsModal';
+import {
+  groupTransactionsByDay,
+  TransactionDayCard,
+} from '../../src/ui/TransactionDayGroup';
+import { radius, useTheme } from '../../src/ui/theme';
 
-export default function DashboardScreen() {
-  const { store } = useVault();
+export default function HomeScreen() {
+  const { store, role, lanState } = useVault();
+  const { colors, isDark } = useTheme();
   const router = useRouter();
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const netWorth = getNetWorth(store);
-  const summary = getMonthlySummary(store, currentMonth);
-  const accounts = getAccountBalances(store);
-  const budgets = getBudgetStatuses(store, currentMonth).slice(0, 3);
-  const recentTxs = listTransactions(store).slice(0, 6);
-  const categories = new Map(listCategories(store).map((c) => [c.id, c]));
+  const [selectedMonth, setSelectedMonth] = useState(() =>
+    new Date().toISOString().slice(0, 7)
+  );
+  const [showAllDays, setShowAllDays] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const range = getMonthDateRange(selectedMonth);
+  const summary = getMonthlySummary(store, selectedMonth);
+  const breakdown = getCategoryBreakdown(store, selectedMonth, 'expense');
+  const txs = listTransactions(store, { month: selectedMonth });
+  const dayGroups = groupTransactionsByDay(txs);
+  const visibleGroups = showAllDays ? dayGroups : dayGroups.slice(0, 5);
+  const categoryMap = new Map(listCategories(store).map((c) => [c.id, c]));
+
+  const donutData: DonutSliceInput[] = breakdown.map((item) => ({
+    id: item.categoryId,
+    label: item.categoryName,
+    value: item.amount,
+    color: item.color,
+  }));
+
+  const handleSyncPress = () => {
+    if (role === 'web-thin-client') {
+      void webSyncClient.syncNow();
+    } else if (!lanState.running) {
+      void phoneLanServer.start(store, 8787).catch(() => {});
+      setMenuOpen(true);
+    } else {
+      setMenuOpen(true);
+    }
+  };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Card style={styles.heroCard}>
-        <Text style={styles.heroLabel}>Total Net Worth</Text>
-        <Text style={styles.heroValue}>{formatCents(netWorth)}</Text>
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCol}>
-            <Text style={styles.subLabel}>Income ({currentMonth})</Text>
-            <AmountText cents={summary.income} kind="income" size={17} />
-          </View>
-          <View style={styles.summaryCol}>
-            <Text style={styles.subLabel}>Spent ({currentMonth})</Text>
-            <AmountText cents={summary.expense} kind="expense" size={17} />
-          </View>
-        </View>
-        <View style={{ marginTop: spacing.md }}>
-          <Button
-            label="+ Add Transaction"
-            onPress={() => router.push('/transaction/new')}
-          />
-        </View>
-      </Card>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+      {/* Top App Bar */}
+      <View
+        style={[
+          styles.topBar,
+          { borderBottomColor: colors.border },
+        ]}
+      >
+        <Pressable
+          onPress={() => setMenuOpen(true)}
+          hitSlop={10}
+          style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Open menu and settings"
+        >
+          <AppIcon name="menu" size={23} color={colors.text} />
+        </Pressable>
 
-      <Text style={styles.sectionTitle}>Accounts</Text>
-      <Card>
-        {accounts.map((acc) => (
-          <View key={acc.id} style={styles.row}>
-            <View>
-              <Text style={styles.rowTitle}>{acc.name}</Text>
-              <Text style={styles.rowSub}>{acc.type.toUpperCase()}</Text>
+        <Pressable
+          onPress={handleSyncPress}
+          hitSlop={10}
+          style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Sync or manage web server"
+        >
+          <AppIcon name="sync" size={21} color={colors.text} />
+        </Pressable>
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Month Period Selector */}
+        <PeriodHeader
+          monthLabel={range.monthLabel}
+          rangeLabel={range.rangeLabel}
+          onPrev={() => setSelectedMonth((m) => shiftYearMonth(m, -1))}
+          onNext={() => setSelectedMonth((m) => shiftYearMonth(m, 1))}
+        />
+
+        {/* Monthly Balance & Donut Card */}
+        <View
+          style={[
+            styles.balanceCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderWidth: isDark ? 0 : 1,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.cardHeader,
+              { borderBottomColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
+              {range.monthLabel}'s balance
+            </Text>
+          </View>
+
+          <View style={styles.balanceBody}>
+            <DonutChart
+              data={donutData}
+              size={136}
+              centerLabel="Expense"
+              maxLabelChars={10}
+            />
+
+            <View style={styles.balanceStats}>
+              <View style={styles.statRow}>
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>
+                  Income
+                </Text>
+                <Text style={[styles.statAmount, { color: colors.income }]}>
+                  {formatAmountPlain(summary.income)}
+                </Text>
+              </View>
+
+              <View style={styles.statRow}>
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>
+                  Expense
+                </Text>
+                <Text style={[styles.statAmount, { color: colors.expense }]}>
+                  {formatAmountPlain(summary.expense)}
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.statDivider,
+                  { backgroundColor: colors.border },
+                ]}
+              />
+
+              <View style={styles.balanceTotalRow}>
+                <Text style={[styles.balanceLabel, { color: colors.textMuted }]}>
+                  Balance
+                </Text>
+                <Text style={[styles.balanceValue, { color: colors.text }]}>
+                  {formatAmountPlain(summary.net)}
+                </Text>
+              </View>
             </View>
-            <AmountText cents={acc.balance} size={16} />
           </View>
-        ))}
-      </Card>
+        </View>
 
-      {budgets.length > 0 && (
-        <>
-          <Text style={styles.sectionTitle}>Monthly Budgets ({currentMonth})</Text>
-          <Card>
-            {budgets.map((b) => (
-              <View key={b.id} style={{ marginBottom: spacing.md }}>
-                <View style={styles.row}>
-                  <Text style={styles.rowTitle}>{b.categoryName}</Text>
-                  <Text style={styles.rowSub}>
-                    {formatCents(b.spent)} / {formatCents(b.limitAmount)}
-                  </Text>
-                </View>
-                <ProgressBar progress={b.progress} color={b.categoryColor} />
-              </View>
-            ))}
-          </Card>
-        </>
-      )}
+        {/* Monthly Transactions Section */}
+        <Text style={[styles.sectionHeading, { color: colors.text }]}>
+          {range.monthLabel} transactions
+        </Text>
 
-      <Text style={styles.sectionTitle}>Recent Transactions</Text>
-      <Card>
-        {recentTxs.length === 0 ? (
-          <Text style={styles.emptyText}>No transactions recorded yet.</Text>
+        {visibleGroups.length === 0 ? (
+          <View
+            style={[
+              styles.emptyCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderWidth: isDark ? 0 : 1,
+              },
+            ]}
+          >
+            <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+              There is no history.
+            </Text>
+          </View>
         ) : (
-          recentTxs.map((tx) => {
-            const cat = categories.get(tx.categoryId);
-            return (
-              <View key={tx.id} style={styles.row}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>
-                    {tx.note || cat?.name || tx.kind.toUpperCase()}
-                  </Text>
-                  <Text style={styles.rowSub}>
-                    {tx.date} · {cat?.name ?? 'Transfer'}
-                  </Text>
-                </View>
-                <AmountText cents={tx.amount} kind={tx.kind} size={15} />
-              </View>
-            );
-          })
+          visibleGroups.map((group) => (
+            <TransactionDayCard
+              key={group.date}
+              group={group}
+              categoryMap={categoryMap}
+              onSelectTransaction={(tx) =>
+                router.push(`/transaction/new?id=${encodeURIComponent(tx.id)}`)
+              }
+            />
+          ))
         )}
-      </Card>
-    </ScrollView>
+
+        {dayGroups.length > 5 ? (
+          <Pressable
+            onPress={() => setShowAllDays((v) => !v)}
+            style={styles.viewAllBtn}
+          >
+            <Text style={[styles.viewAllText, { color: colors.link }]}>
+              {showAllDays ? 'Show less' : 'View all'}
+            </Text>
+          </Pressable>
+        ) : dayGroups.length > 0 ? (
+          <Pressable
+            onPress={() => router.push('/(tabs)/transactions')}
+            style={styles.viewAllBtn}
+          >
+            <Text style={[styles.viewAllText, { color: colors.link }]}>
+              View all
+            </Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
+
+      <FloatingAddButton
+        onPress={() => router.push('/transaction/new')}
+      />
+
+      <SettingsModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.lg, maxWidth: 920, width: '100%', alignSelf: 'center' },
-  heroCard: { backgroundColor: '#131c31', borderColor: '#1e293b' },
-  heroLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
-  heroValue: {
-    color: colors.text,
-    fontSize: 34,
-    fontWeight: '800',
-    marginVertical: spacing.xs,
+  screen: {
+    flex: 1,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  iconBtn: {
+    padding: 4,
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 96,
+  },
+  balanceCard: {
+    borderRadius: radius.lg,
+    marginTop: 4,
+    marginBottom: 22,
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  cardHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  balanceBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    gap: 16,
+  },
+  balanceStats: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  statLabel: {
+    fontSize: 13.5,
+    fontWeight: '500',
+  },
+  statAmount: {
+    fontSize: 14.5,
+    fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+  statDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: 10,
   },
-  summaryCol: { flex: 1 },
-  subLabel: { color: colors.textMuted, fontSize: 12, marginBottom: 2 },
-  sectionTitle: {
-    color: colors.textSecondary,
-    fontSize: 14,
+  balanceTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  balanceLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  balanceValue: {
+    fontSize: 26,
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
   },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  sectionHeading: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  emptyCard: {
+    borderRadius: radius.lg,
+    paddingVertical: 32,
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    justifyContent: 'center',
   },
-  rowTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  rowSub: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
-  emptyText: { color: colors.textMuted, textAlign: 'center', paddingVertical: spacing.md },
+  emptyText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  viewAllBtn: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  viewAllText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
 });

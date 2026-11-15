@@ -69,3 +69,26 @@ export function centsToDecimalString(cents: Cents): string {
   const frac = String(abs % 100).padStart(2, '0');
   return `${sign}${whole}.${frac}`;
 }
+
+/**
+ * Formats integer cents in the clean numeric style used across the app UI:
+ * - No currency symbol
+ * - Comma thousands separators
+ * - Strips trailing ".00" (e.g. 391100 -> "3,911") and trailing "0" in tenths (e.g. 377310 -> "3,773.1")
+ */
+export function formatAmountPlain(cents: Cents): string {
+  assertIntegerCents(cents);
+  if (cents === 0) return '0';
+  const sign = cents < 0 ? '-' : '';
+  const abs = Math.abs(cents);
+  const whole = Math.floor(abs / 100);
+  const rem = abs % 100;
+  const wholeFormatted = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  if (rem === 0) {
+    return `${sign}${wholeFormatted}`;
+  }
+  if (rem % 10 === 0) {
+    return `${sign}${wholeFormatted}.${rem / 10}`;
+  }
+  return `${sign}${wholeFormatted}.${String(rem).padStart(2, '0')}`;
+}
