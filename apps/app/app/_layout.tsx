@@ -2,7 +2,7 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { VaultProvider } from '../src/data/VaultContext';
 import { SyncTopBar } from '../src/ui/components';
 import { DesktopSidebar } from '../src/ui/DesktopSidebar';
@@ -43,8 +43,8 @@ function ThemedAppShell() {
                 name="transaction/new"
                 options={{
                   headerShown: false,
-                  presentation: 'transparentModal',
-                  animation: 'slide_from_bottom',
+                  presentation: Platform.OS === 'web' ? 'card' : 'transparentModal',
+                  animation: Platform.OS === 'web' ? 'fade' : 'slide_from_bottom',
                 }}
               />
               <Stack.Screen

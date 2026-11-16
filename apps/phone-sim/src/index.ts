@@ -111,6 +111,33 @@ export function startPhoneSimServer(options?: PhoneSimOptions) {
       );
       return res;
     },
+    getStaticAsset: (reqPath) => {
+      const distDir = path.resolve(process.cwd(), 'apps/app/dist');
+      if (!fs.existsSync(distDir)) return undefined;
+      const normalized = reqPath === '' || reqPath === '/' ? '/index.html' : reqPath;
+      let filePath = path.join(distDir, normalized);
+      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+        filePath = path.join(distDir, 'index.html');
+      }
+      if (!fs.existsSync(filePath)) return undefined;
+      const ext = path.extname(filePath).toLowerCase();
+      const MIME_MAP: Record<string, string> = {
+        '.html': 'text/html; charset=utf-8',
+        '.js': 'application/javascript; charset=utf-8',
+        '.css': 'text/css; charset=utf-8',
+        '.json': 'application/json; charset=utf-8',
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon',
+      };
+      return {
+        status: 200,
+        headers: {
+          'Content-Type': MIME_MAP[ext] || 'application/octet-stream',
+          'Access-Control-Allow-Origin': '*',
+        },
+        body: fs.readFileSync(filePath, 'utf-8'),
+      };
+    },
   });
 
   const server = net.createServer((socket) => {

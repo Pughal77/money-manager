@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -247,17 +248,45 @@ export default function TransactionSheetScreen() {
   const accountRolePrefix = kind === 'income' ? 'Deposit to' : 'Pay from';
   const accountDisplayName = selectedAccount?.name ?? 'Main Account';
 
+  const topClearance = Math.max(insets.top + 48, 96);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          gestureState.dy > 10 && Math.abs(gestureState.dx) < 20,
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 50 || gestureState.vy > 0.5) {
+            router.back();
+          }
+        },
+      }),
+    [router]
+  );
+
   return (
-    <View style={[styles.backdrop, isDesktop && styles.backdropDesktop]}>
+    <View style={[styles.backdrop, isDesktop ? styles.backdropDesktop : styles.backdropMobile]}>
+      {/* Background click overlay to dismiss */}
       <Pressable
-        style={isDesktop ? StyleSheet.absoluteFill : styles.dismissTop}
+        style={[StyleSheet.absoluteFill, styles.backdropOverlay]}
         onPress={() => router.back()}
+        accessibilityLabel="Dismiss modal"
       />
+
+      {/* On mobile, explicit clearance area below dynamic island */}
+      {!isDesktop && (
+        <Pressable
+          style={{ height: topClearance }}
+          onPress={() => router.back()}
+          accessibilityLabel="Dismiss modal"
+        />
+      )}
 
       <View
         style={[
           styles.sheet,
-          isDesktop && styles.sheetDesktop,
+          isDesktop ? styles.sheetDesktop : styles.sheetMobile,
           {
             backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
             borderColor: colors.border,
@@ -266,7 +295,10 @@ export default function TransactionSheetScreen() {
         ]}
       >
         {/* Top Handle & Discard / Optional Delete Icon */}
-        <View style={styles.handleBar}>
+        <View
+          style={styles.handleBar}
+          {...(isDesktop ? {} : panResponder.panHandlers)}
+        >
           <View style={styles.handleLeft}>
             <Pressable
               onPress={() => router.back()}
@@ -888,8 +920,8 @@ export default function TransactionSheetScreen() {
             styles.bottomBar,
             {
               backgroundColor: colors.primary,
-              height: 52 + insets.bottom,
-              paddingBottom: insets.bottom,
+              height: 52 + (isDesktop ? 0 : insets.bottom),
+              paddingBottom: isDesktop ? 0 : insets.bottom,
               opacity: pressed ? 0.88 : 1,
             },
           ]}
@@ -915,33 +947,41 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  backdropMobile: {
     justifyContent: 'flex-end',
   },
   backdropDesktop: {
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
-  dismissTop: {
-    height: 32,
+  backdropOverlay: {
+    zIndex: 1,
   },
   sheet: {
+    overflow: 'hidden',
+  },
+  sheetMobile: {
     flex: 1,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
-    overflow: 'hidden',
+    zIndex: 10,
   },
   sheetDesktop: {
-    flex: 0,
     width: '100%',
-    maxWidth: 580,
-    maxHeight: '92%',
+    maxWidth: 540,
+    height: 640,
+    maxHeight: '90%',
     borderRadius: 20,
+    zIndex: 10,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.35,
-    shadowRadius: 24,
-    elevation: 10,
+    shadowRadius: 28,
+    elevation: 12,
   },
   handleBar: {
     flexDirection: 'row',
