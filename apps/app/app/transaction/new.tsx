@@ -246,9 +246,26 @@ export default function TransactionSheetScreen() {
           },
         ]}
       >
-        {/* Top Handle & Optional Delete Icon */}
+        {/* Top Handle & Discard / Optional Delete Icon */}
         <View style={styles.handleBar}>
-          <View style={styles.handleSpacer} />
+          <View style={styles.handleLeft}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.iconCircle,
+                {
+                  backgroundColor: isDark ? '#2C2C2E' : '#F4F4F5',
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Discard transaction"
+              testID="discard-transaction-button"
+            >
+              <AppIcon name="close" size={18} color={colors.text} />
+            </Pressable>
+          </View>
           <View
             style={[
               styles.dragPill,
@@ -261,7 +278,7 @@ export default function TransactionSheetScreen() {
                 onPress={handleDelete}
                 hitSlop={10}
                 style={({ pressed }) => [
-                  styles.trashCircle,
+                  styles.iconCircle,
                   {
                     backgroundColor: isDark ? '#2C2C2E' : '#F4F4F5',
                     opacity: pressed ? 0.7 : 1,
@@ -269,6 +286,7 @@ export default function TransactionSheetScreen() {
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="Delete transaction"
+                testID="delete-transaction-button"
               >
                 <AppIcon name="trash" size={18} color={colors.textSecondary} />
               </Pressable>
@@ -897,8 +915,9 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 4,
   },
-  handleSpacer: {
+  handleLeft: {
     width: 36,
+    alignItems: 'flex-start',
   },
   dragPill: {
     width: 40,
@@ -909,7 +928,7 @@ const styles = StyleSheet.create({
     width: 36,
     alignItems: 'flex-end',
   },
-  trashCircle: {
+  iconCircle: {
     width: 34,
     height: 34,
     borderRadius: 17,

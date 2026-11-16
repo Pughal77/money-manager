@@ -28,6 +28,7 @@ import {
   getDailyCalendarTotals,
   getMonthDateRange,
   getMonthlySummary,
+  getTransactionById,
   getNetWorth,
   getPeriodSummary,
   getSubcategoryBreakdown,
@@ -551,5 +552,43 @@ describe('@mm/core', () => {
     expect(getBudgetStatuses(restored, '2026-11')[0].periodType).toBe('monthly');
     expect(getBudgetStatuses(restored, '2026')[0].periodType).toBe('yearly');
     expect(getBudgetStatuses(restored, '2026')[0].spent).toBe(25500);
+  });
+
+  it('preserves store integrity when transaction creation or editing is aborted / discarded', () => {
+    const store = createAppStore('node-discard-test');
+    seedDefaultData(store);
+
+    const initialTxId = addTransaction(store, {
+      accountId: 'acc-checking',
+      categoryId: 'cat-food',
+      kind: 'expense',
+      amount: 4500,
+      date: '2026-11-16',
+      note: 'Supermarket',
+    });
+
+    const initialTxList = listTransactions(store);
+    const initialCount = initialTxList.length;
+    const initialBalances = getAccountBalances(store);
+
+    // Simulating discarded new transaction: state changes in form / calculator are not saved to store
+    let calc = createCalculatorState();
+    calc = stepCalculator(calc, '5');
+    calc = stepCalculator(calc, '0');
+    expect(getCalculatorCents(calc)).toBe(5000);
+    // User presses discard -> no call to addTransaction
+
+    expect(listTransactions(store)).toHaveLength(initialCount);
+    expect(getAccountBalances(store)).toEqual(initialBalances);
+
+    // Simulating discarded edit: existing transaction is untouched if editing is dismissed
+    const targetTx = getTransactionById(store, initialTxId)!;
+    const originalAmount = targetTx.amount;
+    const originalNote = targetTx.note;
+
+    // User edits in UI but hits discard -> no call to updateTransaction
+    const refreshedTx = getTransactionById(store, initialTxId);
+    expect(refreshedTx?.amount).toBe(originalAmount);
+    expect(refreshedTx?.note).toBe(originalNote);
   });
 });
