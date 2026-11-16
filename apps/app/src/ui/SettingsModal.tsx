@@ -187,7 +187,7 @@ export function SettingsModal({
                 </View>
                 <View style={{ flex: 1 }}>
                   <Button
-                    label="Monthly Budgets"
+                    label="Budgets"
                     variant="secondary"
                     onPress={() => {
                       onClose();

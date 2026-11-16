@@ -33,13 +33,17 @@ import {
   getSubcategoryBreakdown,
   getThemeMode,
   getWeekDateRange,
+  getWeeksForMonth,
+  getYearDateRange,
   importBackupZip,
   listCategories,
   listTransactions,
+  normalizeBudgetPeriod,
   parseToCents,
   seedDefaultData,
   setBudget,
   setThemeMode,
+  shiftYear,
   shiftYearMonth,
   stepCalculator,
   updateTransaction,
@@ -379,5 +383,173 @@ describe('@mm/core', () => {
     // Pre-filled amount (e.g. 3,911 in View/Edit mode)
     const editState = createCalculatorState(391100);
     expect(getCalculatorDisplayAmount(editState)).toBe('3,911');
+  });
+
+  it('supports weekly, monthly, and yearly budgets, period helpers, all-expenses budgets, and CSV round-trip', () => {
+    // Year and week period helpers
+    const year2026 = getYearDateRange('2026');
+    expect(year2026).toEqual({
+      monthLabel: '2026',
+      fullMonthYearLabel: '2026',
+      rangeLabel: '01/01 - 31/12',
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+    });
+    expect(shiftYear('2026', -1)).toBe('2025');
+    expect(shiftYear('2026', 2)).toBe('2028');
+
+    const novWeeks = getWeeksForMonth('2026-11');
+    expect(novWeeks).toHaveLength(6);
+    expect(novWeeks[0].startDate).toBe('2026-10-26');
+    expect(novWeeks[0].endDate).toBe('2026-11-01');
+    expect(novWeeks[5].startDate).toBe('2026-11-30');
+    expect(novWeeks[5].endDate).toBe('2026-12-06');
+
+    expect(normalizeBudgetPeriod('2026')).toMatchObject({
+      periodKey: '2026',
+      periodType: 'yearly',
+    });
+    expect(normalizeBudgetPeriod('2026-11')).toMatchObject({
+      periodKey: '2026-11',
+      periodType: 'monthly',
+    });
+    // Mid-week Wednesday 2026-11-18 normalizes to Monday 2026-11-16
+    expect(normalizeBudgetPeriod('2026-11-18')).toMatchObject({
+      periodKey: '2026-11-16',
+      periodType: 'weekly',
+    });
+    expect(() => normalizeBudgetPeriod('2026-02-30')).toThrow();
+    expect(() => normalizeBudgetPeriod('2026-11', 'yearly')).toThrow();
+
+    const store = createAppStore('node-multi-budget');
+    seedDefaultData(store);
+
+    // Transactions spanning 2025, different months in 2026, and inside/outside week 2026-11-16..2026-11-22
+    addTransaction(store, {
+      accountId: 'acc-checking',
+      categoryId: 'cat-food',
+      kind: 'expense',
+      amount: 5000,
+      date: '2025-12-31',
+    });
+    addTransaction(store, {
+      accountId: 'acc-checking',
+      categoryId: 'cat-food',
+      kind: 'expense',
+      amount: 12000,
+      date: '2026-03-10',
+    });
+    addTransaction(store, {
+      accountId: 'acc-checking',
+      categoryId: 'cat-food',
+      kind: 'expense',
+      amount: 3000,
+      date: '2026-11-15', // Sunday before week 2026-11-16
+    });
+    addTransaction(store, {
+      accountId: 'acc-checking',
+      categoryId: 'cat-food',
+      kind: 'expense',
+      amount: 4500,
+      date: '2026-11-18', // Inside week 2026-11-16..2026-11-22
+    });
+    addTransaction(store, {
+      accountId: 'acc-checking',
+      categoryId: 'cat-online-shopping',
+      kind: 'expense',
+      amount: 2500,
+      date: '2026-11-20', // Inside week 2026-11-16..2026-11-22
+    });
+    addTransaction(store, {
+      accountId: 'acc-checking',
+      categoryId: 'cat-food',
+      kind: 'expense',
+      amount: 6000,
+      date: '2026-11-23', // Monday after week 2026-11-16
+    });
+    addTransaction(store, {
+      accountId: 'acc-checking',
+      categoryId: 'cat-food',
+      kind: 'expense',
+      amount: 7000,
+      date: '2027-01-01',
+    });
+
+    // Weekly budgets (saving with Wednesday 2026-11-18 normalizes id & key to Monday 2026-11-16)
+    const weeklyFoodId = setBudget(store, {
+      categoryId: 'cat-food',
+      month: '2026-11-18',
+      periodType: 'weekly',
+      limitAmount: 10000,
+    });
+    expect(weeklyFoodId).toBe('2026-11-16:cat-food');
+    setBudget(store, {
+      categoryId: 'all',
+      month: '2026-11-16',
+      periodType: 'weekly',
+      limitAmount: 15000,
+    });
+
+    const weeklyStatuses = getBudgetStatuses(store, '2026-11-22'); // Sunday of same week
+    expect(weeklyStatuses).toHaveLength(2);
+    expect(weeklyStatuses[0]).toMatchObject({
+      categoryId: 'all',
+      categoryName: 'All Expenses',
+      periodType: 'weekly',
+      startDate: '2026-11-16',
+      endDate: '2026-11-22',
+      spent: 7000, // 4500 + 2500
+      remaining: 8000,
+    });
+    expect(weeklyStatuses[1]).toMatchObject({
+      categoryId: 'cat-food',
+      periodType: 'weekly',
+      spent: 4500,
+      remaining: 5500,
+    });
+
+    // Monthly budget for 2026-11
+    setBudget(store, {
+      categoryId: 'cat-food',
+      month: '2026-11',
+      periodType: 'monthly',
+      limitAmount: 20000,
+    });
+    const monthlyStatuses = getBudgetStatuses(store, '2026-11');
+    expect(monthlyStatuses).toHaveLength(1);
+    expect(monthlyStatuses[0]).toMatchObject({
+      periodType: 'monthly',
+      startDate: '2026-11-01',
+      endDate: '2026-11-30',
+      spent: 3000 + 4500 + 6000, // 13500
+      remaining: 6500,
+    });
+
+    // Yearly budget for 2026 (excludes 2025 and 2027)
+    setBudget(store, {
+      categoryId: 'cat-food',
+      month: '2026',
+      periodType: 'yearly',
+      limitAmount: 30000,
+    });
+    const yearlyStatuses = getBudgetStatuses(store, '2026');
+    expect(yearlyStatuses).toHaveLength(1);
+    expect(yearlyStatuses[0]).toMatchObject({
+      periodType: 'yearly',
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+      spent: 12000 + 3000 + 4500 + 6000, // 25500
+      remaining: 4500,
+    });
+
+    // CSV backup & restore preserves weekly, monthly, and yearly budgets
+    const zip = exportBackupZip(store);
+    const restored = createAppStore('node-multi-budget-restored');
+    importBackupZip(restored, zip, 'replace');
+
+    expect(getBudgetStatuses(restored, '2026-11-16')).toHaveLength(2);
+    expect(getBudgetStatuses(restored, '2026-11')[0].periodType).toBe('monthly');
+    expect(getBudgetStatuses(restored, '2026')[0].periodType).toBe('yearly');
+    expect(getBudgetStatuses(restored, '2026')[0].spent).toBe(25500);
   });
 });

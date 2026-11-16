@@ -5,12 +5,14 @@ import {
   type Account,
   type AccountType,
   type Budget,
+  type BudgetPeriodType,
   type Category,
   type CategoryKind,
   type ThemeMode,
   type Transaction,
   type TransactionKind,
 } from './schema';
+import { normalizeBudgetPeriod } from './uiMath';
 
 export function getThemeMode(store: MergeableStore): ThemeMode {
   const val = String(store.getValue('theme') ?? 'dark');
@@ -310,6 +312,10 @@ export function getDailyCalendarTotals(
 }
 
 export interface BudgetStatus extends Budget {
+  periodType: BudgetPeriodType;
+  startDate: string;
+  endDate: string;
+  periodLabel: string;
   categoryName: string;
   categoryColor: string;
   spent: Cents;
@@ -317,44 +323,80 @@ export interface BudgetStatus extends Budget {
   progress: number; // 0..1+
 }
 
-export function getBudgetStatuses(store: MergeableStore, month: string): BudgetStatus[] {
+export function getBudgetStatuses(store: MergeableStore, monthOrPeriod: string): BudgetStatus[] {
+  const { periodKey, periodType, range } = normalizeBudgetPeriod(monthOrPeriod);
   const budgetsTable = store.getTable('budgets');
   const categories = listCategories(store, 'expense');
   const catMap = new Map(categories.map((c) => [c.id, c]));
-  const txs = listTransactions(store, { month, kind: 'expense' });
+  const txs = listTransactions(store, {
+    startDate: range.startDate,
+    endDate: range.endDate,
+    kind: 'expense',
+  });
 
   const spentByCategory = new Map<string, number>();
+  let totalSpent = 0;
   for (const tx of txs) {
     spentByCategory.set(tx.categoryId, (spentByCategory.get(tx.categoryId) ?? 0) + tx.amount);
+    totalSpent += tx.amount;
   }
 
   const statuses: BudgetStatus[] = [];
   for (const [id, row] of Object.entries(budgetsTable)) {
     if (row.deleted) continue;
-    if (String(row.month) !== month) continue;
+
+    let rowPeriodKey: string;
+    let rowPeriodType: BudgetPeriodType;
+    try {
+      const norm = normalizeBudgetPeriod(String(row.month ?? ''));
+      rowPeriodKey = norm.periodKey;
+      rowPeriodType =
+        row.periodType === 'weekly' || row.periodType === 'monthly' || row.periodType === 'yearly'
+          ? row.periodType
+          : norm.periodType;
+    } catch {
+      continue;
+    }
+    if (rowPeriodKey !== periodKey) continue;
+
     const categoryId = String(row.categoryId ?? '');
-    const cat = catMap.get(categoryId);
-    if (!cat) continue;
+    const isAll = categoryId === 'all';
+    const cat = isAll ? undefined : catMap.get(categoryId);
+    if (!isAll && !cat) continue;
+
     const limitAmount = Number(row.limitAmount ?? 0);
-    const spent = spentByCategory.get(categoryId) ?? 0;
+    const spent = isAll ? totalSpent : (spentByCategory.get(categoryId) ?? 0);
     const remaining = limitAmount - spent;
     const progress = limitAmount > 0 ? spent / limitAmount : spent > 0 ? 1 : 0;
+    const periodLabel =
+      rowPeriodType === 'weekly'
+        ? `${range.rangeLabel} (${range.fullMonthYearLabel})`
+        : range.fullMonthYearLabel;
+
     statuses.push({
       id,
       categoryId,
-      month,
+      month: periodKey,
+      periodType: rowPeriodType,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      periodLabel,
       limitAmount,
       rollover: Boolean(row.rollover),
       deleted: false,
-      categoryName: cat.name,
-      categoryColor: cat.color,
+      categoryName: isAll ? 'All Expenses' : cat!.name,
+      categoryColor: isAll ? '#F3A833' : cat!.color,
       spent,
       remaining,
       progress,
     });
   }
 
-  return statuses.sort((a, b) => b.spent - a.spent);
+  return statuses.sort((a, b) => {
+    if (a.categoryId === 'all' && b.categoryId !== 'all') return -1;
+    if (b.categoryId === 'all' && a.categoryId !== 'all') return 1;
+    return b.spent - a.spent;
+  });
 }
 
 export interface CategoryBreakdownItem {

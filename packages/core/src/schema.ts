@@ -6,6 +6,7 @@ export type AccountType = 'checking' | 'savings' | 'cash' | 'credit';
 export type CategoryKind = 'expense' | 'income';
 export type TransactionKind = 'expense' | 'income' | 'transfer';
 export type ThemeMode = 'dark' | 'light';
+export type BudgetPeriodType = 'weekly' | 'monthly' | 'yearly';
 
 export interface Account {
   id: string;
@@ -51,9 +52,10 @@ export interface Transaction {
 }
 
 export interface Budget {
-  id: string; // `${month}:${categoryId}` e.g. "2026-11:cat-food"
+  id: string; // `${month}:${categoryId}` e.g. "2026-11:cat-food", "2026:cat-food", "2026-11-16:cat-food"
   categoryId: string;
-  month: string; // YYYY-MM
+  month: string; // Period key: YYYY-MM (monthly), YYYY (yearly), or Monday YYYY-MM-DD (weekly)
+  periodType?: BudgetPeriodType;
   limitAmount: Cents;
   rollover: boolean;
   deleted: boolean;
@@ -130,6 +132,7 @@ export function createAppStore(uniqueId?: string): MergeableStore {
     budgets: {
       categoryId: { type: 'string', default: '' },
       month: { type: 'string', default: '' },
+      periodType: { type: 'string', default: 'monthly' },
       limitAmount: { type: 'number', default: 0 },
       rollover: { type: 'boolean', default: false },
       deleted: { type: 'boolean', default: false },

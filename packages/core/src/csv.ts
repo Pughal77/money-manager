@@ -104,9 +104,21 @@ export function importBackupZip(
           });
           importedRows++;
         } else if (tableName === 'budgets') {
+          const rawMonth = String(rawRow.month ?? '');
+          const inferredType =
+            rawRow.periodType === 'weekly' ||
+            rawRow.periodType === 'monthly' ||
+            rawRow.periodType === 'yearly'
+              ? rawRow.periodType
+              : /^\d{4}$/.test(rawMonth)
+                ? 'yearly'
+                : /^\d{4}-\d{2}-\d{2}$/.test(rawMonth)
+                  ? 'weekly'
+                  : 'monthly';
           store.setRow('budgets', id, {
             categoryId: String(rawRow.categoryId ?? ''),
-            month: String(rawRow.month ?? ''),
+            month: rawMonth,
+            periodType: inferredType,
             limitAmount: Number(rawRow.limitAmount ?? 0),
             rollover: rawRow.rollover === 'true' || rawRow.rollover === '1',
             deleted: rawRow.deleted === 'true' || rawRow.deleted === '1',

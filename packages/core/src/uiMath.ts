@@ -1,3 +1,5 @@
+import type { BudgetPeriodType } from './schema';
+
 export interface DonutSliceInput {
   id: string;
   label: string;
@@ -121,7 +123,7 @@ export function computeDonutSlices(
   };
 }
 
-const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const FULL_MONTHS = [
   'January',
   'February',
@@ -211,6 +213,93 @@ export function getWeekDateRange(anchorDate: string): PeriodRangeInfo {
     startDate,
     endDate,
   };
+}
+
+export function getYearDateRange(yearStr: string): PeriodRangeInfo {
+  const year = Number(yearStr) || 2026;
+  const yyyy = String(year).padStart(4, '0');
+  return {
+    monthLabel: yyyy,
+    fullMonthYearLabel: yyyy,
+    rangeLabel: '01/01 - 31/12',
+    startDate: `${yyyy}-01-01`,
+    endDate: `${yyyy}-12-31`,
+  };
+}
+
+export function shiftYear(yearStr: string, deltaYears: number): string {
+  return String((Number(yearStr) || 2026) + deltaYears).padStart(4, '0');
+}
+
+/**
+ * Returns all distinct Monday–Sunday weeks overlapping the given `YYYY-MM` month in chronological order.
+ */
+export function getWeeksForMonth(yearMonth: string): PeriodRangeInfo[] {
+  const monthRange = getMonthDateRange(yearMonth);
+  const weeks: PeriodRangeInfo[] = [];
+  let cursor = monthRange.startDate;
+  while (true) {
+    const week = getWeekDateRange(cursor);
+    if (week.startDate > monthRange.endDate) break;
+    weeks.push(week);
+    cursor = shiftDateByDays(week.startDate, 7);
+  }
+  return weeks;
+}
+
+export interface NormalizedBudgetPeriod {
+  periodKey: string;
+  periodType: BudgetPeriodType;
+  range: PeriodRangeInfo;
+}
+
+/**
+ * Normalizes a budget period string (`YYYY`, `YYYY-MM`, or `YYYY-MM-DD`) into its canonical key,
+ * period type, and inclusive date range. Weekly inputs normalize to the Monday of that week.
+ */
+export function normalizeBudgetPeriod(
+  periodInput: string,
+  explicitType?: BudgetPeriodType
+): NormalizedBudgetPeriod {
+  const trimmed = periodInput.trim();
+  if (/^\d{4}$/.test(trimmed)) {
+    if (explicitType !== undefined && explicitType !== 'yearly') {
+      throw new Error(`Budget period "${periodInput}" does not match period type "${explicitType}"`);
+    }
+    return {
+      periodKey: trimmed,
+      periodType: 'yearly',
+      range: getYearDateRange(trimmed),
+    };
+  }
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(trimmed)) {
+    if (explicitType !== undefined && explicitType !== 'monthly') {
+      throw new Error(`Budget period "${periodInput}" does not match period type "${explicitType}"`);
+    }
+    return {
+      periodKey: trimmed,
+      periodType: 'monthly',
+      range: getMonthDateRange(trimmed),
+    };
+  }
+  if (/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(trimmed)) {
+    if (explicitType !== undefined && explicitType !== 'weekly') {
+      throw new Error(`Budget period "${periodInput}" does not match period type "${explicitType}"`);
+    }
+    const { year, month, day } = parseYmd(trimmed);
+    if (day > daysInMonth(year, month)) {
+      throw new Error(`Invalid calendar date for weekly budget period: ${periodInput}`);
+    }
+    const range = getWeekDateRange(trimmed);
+    return {
+      periodKey: range.startDate,
+      periodType: 'weekly',
+      range,
+    };
+  }
+  throw new Error(
+    `Invalid budget period format (expected YYYY, YYYY-MM, or YYYY-MM-DD): ${periodInput}`
+  );
 }
 
 export interface CalendarCell {

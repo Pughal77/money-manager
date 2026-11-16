@@ -1,7 +1,14 @@
 import type { MergeableStore } from 'tinybase';
 import { uuidv7 } from './id';
 import { assertIntegerCents, type Cents } from './money';
-import type { AccountType, CategoryKind, ThemeMode, TransactionKind } from './schema';
+import type {
+  AccountType,
+  BudgetPeriodType,
+  CategoryKind,
+  ThemeMode,
+  TransactionKind,
+} from './schema';
+import { normalizeBudgetPeriod } from './uiMath';
 
 export interface CreateAccountInput {
   id?: string;
@@ -221,7 +228,8 @@ export function deleteTransaction(store: MergeableStore, id: string): void {
 
 export interface SetBudgetInput {
   categoryId: string;
-  month: string; // YYYY-MM
+  month: string; // YYYY (yearly), YYYY-MM (monthly), or YYYY-MM-DD (weekly, normalized to Monday)
+  periodType?: BudgetPeriodType;
   limitAmount: Cents;
   rollover?: boolean;
 }
@@ -231,13 +239,12 @@ export function setBudget(store: MergeableStore, input: SetBudgetInput): string 
   if (input.limitAmount < 0) {
     throw new Error('Budget limit cannot be negative');
   }
-  if (!/^\d{4}-\d{2}$/.test(input.month)) {
-    throw new Error(`Invalid month format (expected YYYY-MM): ${input.month}`);
-  }
-  const id = `${input.month}:${input.categoryId}`;
+  const { periodKey, periodType } = normalizeBudgetPeriod(input.month, input.periodType);
+  const id = `${periodKey}:${input.categoryId}`;
   store.setRow('budgets', id, {
     categoryId: input.categoryId,
-    month: input.month,
+    month: periodKey,
+    periodType,
     limitAmount: input.limitAmount,
     rollover: input.rollover ?? false,
     deleted: false,
