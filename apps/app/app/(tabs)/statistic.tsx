@@ -9,6 +9,7 @@ import {
 import { useRouter } from 'expo-router';
 import {
   formatAmountPlain,
+  formatAmountWithPercent,
   getCategoryBreakdownByRange,
   getMonthDateRange,
   getPeriodSummary,
@@ -20,18 +21,17 @@ import {
 } from '@mm/core';
 import { useVault } from '../../src/data/VaultContext';
 import { DonutChart } from '../../src/ui/DonutChart';
-import { CategoryBadge } from '../../src/ui/icons';
+import { AppIcon, CategoryBadge } from '../../src/ui/icons';
 import { PeriodHeader } from '../../src/ui/PeriodHeader';
 import { radius, useTheme } from '../../src/ui/theme';
 
 export default function StatisticScreen() {
-  const { store } = useVault();
+  const { store, selectedMonth, setSelectedMonth } = useVault();
   const { colors, isDark } = useTheme();
   const router = useRouter();
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const [periodMode, setPeriodMode] = useState<'monthly' | 'weekly'>('monthly');
-  const [selectedMonth, setSelectedMonth] = useState(() => todayStr.slice(0, 7));
   const [weekAnchorDate, setWeekAnchorDate] = useState(() => todayStr);
   const [chartKind, setChartKind] = useState<CategoryKind>('expense');
 
@@ -92,8 +92,14 @@ export default function StatisticScreen() {
   };
 
   const handleOpenCategory = (categoryId: string) => {
-    const query = `start=${encodeURIComponent(range.startDate)}&end=${encodeURIComponent(range.endDate)}&label=${encodeURIComponent(range.monthLabel)}&range=${encodeURIComponent(range.rangeLabel)}`;
+    const query = `start=${encodeURIComponent(range.startDate)}&end=${encodeURIComponent(range.endDate)}&label=${encodeURIComponent(range.monthLabel)}&range=${encodeURIComponent(range.rangeLabel)}&month=${encodeURIComponent(selectedMonth)}&mode=${periodMode}`;
     router.push(`/category/${encodeURIComponent(categoryId)}?${query}`);
+  };
+
+  const handleOpenBreakdown = (kindTarget: CategoryKind) => {
+    router.push(
+      `/breakdown?month=${encodeURIComponent(selectedMonth)}&kind=${kindTarget}&mode=${periodMode}&anchor=${encodeURIComponent(weekAnchorDate)}`
+    );
   };
 
   return (
@@ -131,14 +137,16 @@ export default function StatisticScreen() {
           onNext={handleNext}
         />
 
-        {/* Balance Summary Card */}
-        <View
-          style={[
+        {/* Balance Summary Card (Tapping opens Decomposition Page) */}
+        <Pressable
+          onPress={() => handleOpenBreakdown(chartKind)}
+          style={({ pressed }) => [
             styles.card,
             {
               backgroundColor: colors.surface,
               borderColor: colors.border,
               borderWidth: isDark ? 0 : 1,
+              opacity: pressed ? 0.88 : 1,
             },
           ]}
         >
@@ -146,26 +154,38 @@ export default function StatisticScreen() {
             <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
               {range.monthLabel}'s balance
             </Text>
+            <View style={styles.headerAction}>
+              <Text style={[styles.headerActionText, { color: colors.textMuted }]}>
+                Decomposition
+              </Text>
+              <AppIcon name="chevron-right" size={15} color={colors.textMuted} />
+            </View>
           </View>
 
           <View style={styles.balanceBody}>
-            <View style={styles.statRow}>
+            <Pressable
+              onPress={() => handleOpenBreakdown('income')}
+              style={styles.statRow}
+            >
               <Text style={[styles.statLabel, { color: colors.textMuted }]}>
                 Income
               </Text>
               <Text style={[styles.statAmount, { color: colors.income }]}>
                 {formatAmountPlain(summary.income)}
               </Text>
-            </View>
+            </Pressable>
 
-            <View style={styles.statRow}>
+            <Pressable
+              onPress={() => handleOpenBreakdown('expense')}
+              style={styles.statRow}
+            >
               <Text style={[styles.statLabel, { color: colors.textMuted }]}>
                 Expense
               </Text>
               <Text style={[styles.statAmount, { color: colors.expense }]}>
                 {formatAmountPlain(summary.expense)}
               </Text>
-            </View>
+            </Pressable>
 
             <View
               style={[
@@ -183,7 +203,7 @@ export default function StatisticScreen() {
               </Text>
             </View>
           </View>
-        </View>
+        </Pressable>
 
         {/* Report Card */}
         <View
@@ -200,38 +220,55 @@ export default function StatisticScreen() {
             <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
               {range.monthLabel}'s report
             </Text>
+            <Pressable
+              onPress={() =>
+                setChartKind((k) => (k === 'expense' ? 'income' : 'expense'))
+              }
+              hitSlop={8}
+            >
+              <Text style={{ color: colors.primary, fontSize: 12.5, fontWeight: '600' }}>
+                Switch to {chartKind === 'expense' ? 'Income' : 'Expense'}
+              </Text>
+            </Pressable>
           </View>
 
-          {/* Donut Chart (Tap to toggle between Expense and Income chart) */}
-          <Pressable
-            onPress={() =>
-              setChartKind((k) => (k === 'expense' ? 'income' : 'expense'))
-            }
-            style={styles.chartContainer}
-          >
+          {/* Donut Chart (Tap center to toggle Expense/Income, tap slice to open category) */}
+          <View style={styles.chartContainer}>
             <DonutChart
               data={donutData}
               size={208}
               centerLabel={activeCenterLabel}
+              centerSubLabel="Tap to switch"
               maxLabelChars={13}
+              onCenterPress={() =>
+                setChartKind((k) => (k === 'expense' ? 'income' : 'expense'))
+              }
+              onSlicePress={(categoryId) => handleOpenCategory(categoryId)}
             />
-          </Pressable>
+          </View>
 
           {/* Total of Income Section */}
           <View style={styles.reportSection}>
-            <View
-              style={[
+            <Pressable
+              onPress={() => handleOpenBreakdown('income')}
+              style={({ pressed }) => [
                 styles.sectionTotalRow,
-                { borderBottomColor: colors.border },
+                {
+                  borderBottomColor: colors.border,
+                  opacity: pressed ? 0.72 : 1,
+                },
               ]}
             >
               <Text style={[styles.sectionTotalTitle, { color: colors.text }]}>
                 Total of income
               </Text>
-              <Text style={[styles.sectionTotalAmount, { color: colors.text }]}>
-                {formatAmountPlain(summary.income)}
-              </Text>
-            </View>
+              <View style={styles.sectionTotalRight}>
+                <Text style={[styles.sectionTotalAmount, { color: colors.text }]}>
+                  {formatAmountPlain(summary.income)}
+                </Text>
+                <AppIcon name="chevron-right" size={16} color={colors.textMuted} />
+              </View>
+            </Pressable>
 
             {incomeBreakdown.map((item) => (
               <Pressable
@@ -251,7 +288,7 @@ export default function StatisticScreen() {
                 <Text
                   style={[styles.categoryAmount, { color: colors.textSecondary }]}
                 >
-                  {formatAmountPlain(item.amount)}
+                  {formatAmountWithPercent(item.amount, item.percentage)}
                 </Text>
               </Pressable>
             ))}
@@ -259,19 +296,26 @@ export default function StatisticScreen() {
 
           {/* Total of Expense Section */}
           <View style={[styles.reportSection, { marginTop: 18 }]}>
-            <View
-              style={[
+            <Pressable
+              onPress={() => handleOpenBreakdown('expense')}
+              style={({ pressed }) => [
                 styles.sectionTotalRow,
-                { borderBottomColor: colors.border },
+                {
+                  borderBottomColor: colors.border,
+                  opacity: pressed ? 0.72 : 1,
+                },
               ]}
             >
               <Text style={[styles.sectionTotalTitle, { color: colors.text }]}>
                 Total of expense
               </Text>
-              <Text style={[styles.sectionTotalAmount, { color: colors.text }]}>
-                {formatAmountPlain(summary.expense)}
-              </Text>
-            </View>
+              <View style={styles.sectionTotalRight}>
+                <Text style={[styles.sectionTotalAmount, { color: colors.text }]}>
+                  {formatAmountPlain(summary.expense)}
+                </Text>
+                <AppIcon name="chevron-right" size={16} color={colors.textMuted} />
+              </View>
+            </Pressable>
 
             {expenseBreakdown.map((item) => (
               <Pressable
@@ -291,7 +335,7 @@ export default function StatisticScreen() {
                 <Text
                   style={[styles.categoryAmount, { color: colors.textSecondary }]}
                 >
-                  {formatAmountPlain(item.amount)}
+                  {formatAmountWithPercent(item.amount, item.percentage)}
                 </Text>
               </Pressable>
             ))}
@@ -344,6 +388,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -351,6 +398,15 @@ const styles = StyleSheet.create({
   cardHeaderTitle: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  headerAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  headerActionText: {
+    fontSize: 12.5,
+    fontWeight: '500',
   },
   balanceBody: {
     paddingHorizontal: 18,
@@ -411,6 +467,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
+  sectionTotalRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   sectionTotalAmount: {
     fontSize: 18,
     fontWeight: '600',
@@ -432,7 +493,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   categoryAmount: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '500',
     fontVariant: ['tabular-nums'],
   },

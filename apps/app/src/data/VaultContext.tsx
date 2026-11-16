@@ -10,6 +10,10 @@ interface VaultContextValue {
   version: number;
   webState: WebClientState;
   lanState: LanServerSnapshot;
+  selectedMonth: string;
+  setSelectedMonth: React.Dispatch<React.SetStateAction<string>>;
+  selectedDate: string;
+  setSelectedDate: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const VaultContext = createContext<VaultContextValue | null>(null);
@@ -20,6 +24,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [version, setVersion] = useState(0);
   const [webState, setWebState] = useState<WebClientState>(() => webSyncClient.getState());
   const [lanState, setLanState] = useState<LanServerSnapshot>(() => phoneLanServer.getState());
+  const [selectedMonth, setSelectedMonth] = useState<string>(() =>
+    new Date().toISOString().slice(0, 7)
+  );
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+    new Date().toISOString().slice(0, 10)
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -69,6 +79,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         version,
         webState,
         lanState,
+        selectedMonth,
+        setSelectedMonth,
+        selectedDate,
+        setSelectedDate,
       }}
     >
       {children}

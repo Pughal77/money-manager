@@ -14,8 +14,11 @@ import {
   centsToDecimalString,
   deleteAccount,
   deleteCategory,
+  formatAmountPlain,
   getAccountBalances,
+  getNetWorth,
   listCategories,
+  listTransactions,
   parseToCents,
   updateAccount,
   updateCategory,
@@ -32,6 +35,8 @@ export default function AccountsScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const accounts = getAccountBalances(store);
+  const netWorth = getNetWorth(store);
+  const allTxs = listTransactions(store);
   const categories = listCategories(store);
 
   const [name, setName] = useState('');
@@ -271,7 +276,7 @@ export default function AccountsScreen() {
         </Card>
 
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-          Your Accounts
+          Your Accounts (Total Net Worth: {formatAmountPlain(netWorth)})
         </Text>
         <Card>
           {accounts.length === 0 ? (
@@ -279,7 +284,14 @@ export default function AccountsScreen() {
               No accounts yet. Create your first account below.
             </Text>
           ) : (
-            accounts.map((acc) => (
+            accounts.map((acc) => {
+              const accIncome = allTxs
+                .filter((t) => t.accountId === acc.id && t.kind === 'income')
+                .reduce((s, t) => s + t.amount, 0);
+              const accExpense = allTxs
+                .filter((t) => t.accountId === acc.id && t.kind === 'expense')
+                .reduce((s, t) => s + t.amount, 0);
+              return (
               <View
                 key={acc.id}
                 style={[styles.accountBlock, { borderBottomColor: colors.border }]}
@@ -291,7 +303,14 @@ export default function AccountsScreen() {
                     </Text>
                     <Text style={[styles.sub, { color: colors.textMuted }]}>
                       {acc.type.toUpperCase()} · Opening:{' '}
-                      {centsToDecimalString(acc.openingBalance)}
+                      {formatAmountPlain(acc.openingBalance)} ·{' '}
+                      <Text style={{ color: colors.income }}>
+                        +{formatAmountPlain(accIncome)}
+                      </Text>{' '}
+                      /{' '}
+                      <Text style={{ color: colors.expense }}>
+                        -{formatAmountPlain(accExpense)}
+                      </Text>
                     </Text>
                   </View>
                   <View style={styles.rightActions}>
@@ -362,7 +381,8 @@ export default function AccountsScreen() {
                   </View>
                 )}
               </View>
-            ))
+            );
+            })
           )}
 
           <Text style={[styles.label, { color: colors.textSecondary }]}>

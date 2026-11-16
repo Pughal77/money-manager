@@ -92,3 +92,25 @@ export function formatAmountPlain(cents: Cents): string {
   }
   return `${sign}${wholeFormatted}.${String(rem).padStart(2, '0')}`;
 }
+
+/**
+ * Formats a percentage number (0..100) cleanly inside brackets:
+ * - e.g. 100 -> "(100%)", 43.8 -> "(43.8%)", 0 -> "(0%)"
+ */
+export function formatPercentBracket(percentage: number): string {
+  if (!Number.isFinite(percentage) || percentage <= 0) {
+    return '(0%)';
+  }
+  const rounded = Math.round(percentage * 10) / 10;
+  const formatted = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  return `(${formatted}%)`;
+}
+
+/**
+ * Formats integer cents together with its percentage in brackets:
+ * - e.g. (21125, 43.8) -> "211.25 (43.8%)"
+ * - e.g. (423293, 99.5) -> "4,232.93 (99.5%)"
+ */
+export function formatAmountWithPercent(cents: Cents, percentage: number): string {
+  return `${formatAmountPlain(cents)} ${formatPercentBracket(percentage)}`;
+}

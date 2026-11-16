@@ -11,12 +11,15 @@ import {
   deleteTransaction,
   exportBackupZip,
   formatAmountPlain,
+  formatAmountWithPercent,
   formatCents,
   formatDayCardHeader,
   formatDisplayDate,
+  formatPercentBracket,
   formatPickerBannerDate,
   formatTransactionTitle,
   getAccountBalances,
+  getAccountById,
   getBudgetStatuses,
   getCalculatorCents,
   getCalculatorDisplayAmount,
@@ -69,6 +72,14 @@ describe('@mm/core', () => {
     expect(formatAmountPlain(425486)).toBe('4,254.86');
     expect(formatAmountPlain(730)).toBe('7.3');
     expect(formatAmountPlain(5245)).toBe('52.45');
+
+    // Percentage in brackets formatting
+    expect(formatPercentBracket(0)).toBe('(0%)');
+    expect(formatPercentBracket(100)).toBe('(100%)');
+    expect(formatPercentBracket(43.84)).toBe('(43.8%)');
+    expect(formatAmountWithPercent(21125, 43.84)).toBe('211.25 (43.8%)');
+    expect(formatAmountWithPercent(423293, 99.5)).toBe('4,232.93 (99.5%)');
+    expect(formatAmountWithPercent(0, 0)).toBe('0 (0%)');
   });
 
   it('computes account balances, transfers, budgets, and monthly summaries', () => {
@@ -205,11 +216,38 @@ describe('@mm/core', () => {
     expect(formatTransactionTitle(foodCat, eatingOutTx)).toBe('Food > Eating out');
     expect(formatTransactionTitle(salaryCat, salaryTx)).toBe('income > Salary');
 
-    // Subcategory breakdown for Food includes active and 0-amount subcategories
+    // Subcategory breakdown for Food includes active and 0-amount subcategories with percentages & counts
     const subBreakdown = getSubcategoryBreakdown(store, 'cat-food', '2026-11-01', '2026-11-30');
-    expect(subBreakdown[0]).toMatchObject({ subcategory: 'Eating out', amount: 16715 });
-    expect(subBreakdown[1]).toMatchObject({ subcategory: 'Drink', amount: 4410 });
+    expect(subBreakdown[0]).toMatchObject({
+      subcategory: 'Eating out',
+      amount: 16715,
+      percentage: 79.1,
+      transactionCount: 1,
+    });
+    expect(subBreakdown[1]).toMatchObject({
+      subcategory: 'Drink',
+      amount: 4410,
+      percentage: 20.9,
+      transactionCount: 1,
+    });
     expect(subBreakdown.find((s) => s.subcategory === 'Grocery')?.amount).toBe(0);
+
+    // Category breakdown for income and expense includes percentages & counts
+    const expBreakdown = getCategoryBreakdown(store, '2026-11', 'expense');
+    expect(expBreakdown[0]).toMatchObject({
+      categoryId: 'cat-food',
+      amount: 21125,
+      percentage: 100,
+      transactionCount: 2,
+    });
+    const incBreakdown = getCategoryBreakdown(store, '2026-11', 'income');
+    expect(incBreakdown[0]).toMatchObject({
+      categoryId: 'cat-salary',
+      amount: 391100,
+      percentage: 100,
+      transactionCount: 1,
+    });
+    expect(getAccountById(store, 'acc-checking')?.name).toBe('Main Account');
 
     // Weekly period summary (10 Nov to 16 Nov)
     const weekSummary = getPeriodSummary(store, '2026-11-10', '2026-11-16');

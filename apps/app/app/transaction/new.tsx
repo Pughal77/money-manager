@@ -13,15 +13,18 @@ import {
   addTransaction,
   createCalculatorState,
   deleteTransaction,
+  formatAmountPlain,
   formatDisplayDate,
+  getAccountBalances,
+  getAccountById,
   getCalculatorCents,
   getCalculatorDisplayAmount,
   getCategoryById,
   getTransactionById,
-  listAccounts,
   listCategories,
   stepCalculator,
   updateTransaction,
+  type AccountType,
   type CategoryKind,
 } from '@mm/core';
 import { useVault } from '../../src/data/VaultContext';
@@ -29,13 +32,20 @@ import { DatePickerModal } from '../../src/ui/DatePickerModal';
 import { AppIcon, CategoryBadge } from '../../src/ui/icons';
 import { radius, useTheme } from '../../src/ui/theme';
 
-type ActivePane = 'none' | 'calculator' | 'category';
+type ActivePane = 'none' | 'calculator' | 'category' | 'subcategory' | 'account';
 
 export default function TransactionSheetScreen() {
   const { store } = useVault();
   const { colors, isDark } = useTheme();
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string; date?: string }>();
+  const params = useLocalSearchParams<{
+    id?: string;
+    date?: string;
+    kind?: string;
+    categoryId?: string;
+    subcategory?: string;
+    accountId?: string;
+  }>();
 
   const existingTx = useMemo(
     () => (params.id ? getTransactionById(store, String(params.id)) : undefined),
@@ -43,20 +53,32 @@ export default function TransactionSheetScreen() {
   );
   const isEditing = Boolean(existingTx);
 
+  const accountsWithBalances = getAccountBalances(store);
+  const defaultAccountId =
+    existingTx?.accountId ||
+    (params.accountId ? String(params.accountId) : '') ||
+    accountsWithBalances[0]?.id ||
+    'acc-checking';
+
   const initialDate =
     existingTx?.date ||
     (params.date && /^\d{4}-\d{2}-\d{2}$/.test(String(params.date))
       ? String(params.date)
       : new Date().toISOString().slice(0, 10));
 
-  const [kind, setKind] = useState<CategoryKind>(() =>
-    existingTx?.kind === 'income' ? 'income' : 'expense'
-  );
+  const [kind, setKind] = useState<CategoryKind>(() => {
+    if (existingTx?.kind === 'income' || existingTx?.kind === 'expense') {
+      return existingTx.kind;
+    }
+    if (params.kind === 'income') return 'income';
+    return 'expense';
+  });
+  const [accountId, setAccountId] = useState<string>(defaultAccountId);
   const [categoryId, setCategoryId] = useState<string>(
-    () => existingTx?.categoryId ?? ''
+    () => existingTx?.categoryId ?? (params.categoryId ? String(params.categoryId) : '')
   );
   const [subcategory, setSubcategory] = useState<string>(
-    () => existingTx?.subcategory ?? ''
+    () => existingTx?.subcategory ?? (params.subcategory ? String(params.subcategory) : '')
   );
   const [date, setDate] = useState<string>(initialDate);
   const [note, setNote] = useState<string>(() => existingTx?.note ?? '');
@@ -69,10 +91,17 @@ export default function TransactionSheetScreen() {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Quick inline account creation inside the Account picker pane
+  const [newAccName, setNewAccName] = useState('');
+  const [newAccType, setNewAccType] = useState<AccountType>('checking');
+
   const categoriesForKind = listCategories(store, kind);
   const selectedCategory = categoryId
     ? getCategoryById(store, categoryId)
     : undefined;
+  const selectedAccount =
+    accountsWithBalances.find((a) => a.id === accountId) ||
+    getAccountById(store, accountId);
 
   const categoryTitle = useMemo(() => {
     if (!selectedCategory) {
@@ -94,9 +123,32 @@ export default function TransactionSheetScreen() {
     if (!cat) return;
     setCategoryId(cat.id);
     setKind(cat.kind);
-    const firstSub = cat.subcategories[0] ?? (cat.kind === 'income' ? cat.name : 'Other');
+    const firstSub =
+      cat.subcategories[0] ?? (cat.kind === 'income' ? cat.name : 'Other');
     setSubcategory(firstSub);
     setErrorMsg(null);
+
+    // Option A: If this category has multiple subcategories, immediately reveal the Subcategory Grid Picker
+    if (cat.subcategories.length > 1) {
+      setActivePane('subcategory');
+    }
+  };
+
+  const handleSelectSubcategory = (sub: string) => {
+    setSubcategory(sub);
+    setErrorMsg(null);
+  };
+
+  const handleQuickCreateAccount = () => {
+    const trimmed = newAccName.trim();
+    if (!trimmed) return;
+    const createdId = addAccount(store, {
+      name: trimmed,
+      type: newAccType,
+      openingBalance: 0,
+    });
+    setAccountId(createdId);
+    setNewAccName('');
   };
 
   const handleDelete = () => {
@@ -126,10 +178,9 @@ export default function TransactionSheetScreen() {
       return;
     }
 
-    const accounts = listAccounts(store);
-    const accountId =
-      existingTx?.accountId ||
-      accounts[0]?.id ||
+    const ensuredAccountId =
+      (selectedAccount && selectedAccount.id) ||
+      accountsWithBalances[0]?.id ||
       addAccount(store, {
         id: 'acc-checking',
         name: 'Main Account',
@@ -148,7 +199,7 @@ export default function TransactionSheetScreen() {
 
     if (existingTx) {
       updateTransaction(store, existingTx.id, {
-        accountId,
+        accountId: ensuredAccountId,
         categoryId: finalCatId,
         subcategory: finalSub,
         kind,
@@ -158,7 +209,7 @@ export default function TransactionSheetScreen() {
       });
     } else {
       addTransaction(store, {
-        accountId,
+        accountId: ensuredAccountId,
         categoryId: finalCatId,
         subcategory: finalSub,
         kind,
@@ -173,7 +224,14 @@ export default function TransactionSheetScreen() {
 
   const displayAmount = getCalculatorDisplayAmount(calcState);
   const bottomButtonLabel =
-    activePane === 'calculator' && !isEditing ? 'Confirm' : 'Save';
+    activePane === 'calculator' && !isEditing && !categoryId
+      ? 'Confirm'
+      : 'Save';
+
+  const accountRolePrefix = kind === 'income' ? 'Deposit to' : 'Pay from';
+  const accountDisplayName = selectedAccount?.name ?? 'Main Account';
+  const accountBalance =
+    accountsWithBalances.find((a) => a.id === accountId)?.balance ?? 0;
 
   return (
     <View style={styles.backdrop}>
@@ -234,7 +292,9 @@ export default function TransactionSheetScreen() {
               {
                 color:
                   getCalculatorCents(calcState) > 0
-                    ? colors.text
+                    ? kind === 'income'
+                      ? colors.income
+                      : colors.text
                     : colors.textMuted,
               },
             ]}
@@ -250,28 +310,103 @@ export default function TransactionSheetScreen() {
 
         {/* Row 1: Category > Subcategory */}
         <Pressable
-          onPress={() => setActivePane('category')}
+          onPress={() => {
+            if (
+              selectedCategory &&
+              selectedCategory.subcategories.length > 1 &&
+              activePane === 'category'
+            ) {
+              setActivePane('subcategory');
+            } else {
+              setActivePane('category');
+            }
+          }}
           style={[styles.fieldRow, { borderBottomColor: colors.border }]}
         >
           {selectedCategory ? (
             <CategoryBadge
               icon={selectedCategory.icon}
               color={selectedCategory.color}
-              size={38}
+              size={36}
             />
           ) : (
             <CategoryBadge
               icon="question"
               color={isDark ? '#D4D4D8' : '#E4E4E7'}
-              size={38}
+              size={36}
             />
           )}
-          <Text style={[styles.fieldTextPrimary, { color: colors.text }]}>
+          <Text
+            style={[styles.fieldTextPrimary, { color: colors.text, flex: 1 }]}
+            numberOfLines={1}
+          >
             {categoryTitle}
           </Text>
+          {selectedCategory && selectedCategory.subcategories.length > 1 ? (
+            <Pressable
+              onPress={() => setActivePane('subcategory')}
+              style={[
+                styles.subcatTriggerPill,
+                {
+                  backgroundColor: isDark ? '#2C2C2E' : '#F3F4F6',
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.subcatTriggerText,
+                  { color: colors.primary },
+                ]}
+              >
+                Subcategory
+              </Text>
+            </Pressable>
+          ) : null}
         </Pressable>
 
-        {/* Row 2: Date */}
+        {/* Row 2: Account (Explicitly links Income / Expense to an Account) */}
+        <Pressable
+          onPress={() =>
+            setActivePane((p) => (p === 'account' ? 'category' : 'account'))
+          }
+          style={[styles.fieldRow, { borderBottomColor: colors.border }]}
+        >
+          <View style={styles.fieldIconBox}>
+            <AppIcon
+              name="banknotes"
+              size={20}
+              color={kind === 'income' ? colors.income : colors.primary}
+            />
+          </View>
+          <View style={styles.accountRowCenter}>
+            <Text style={[styles.accountRoleText, { color: colors.textMuted }]}>
+              {accountRolePrefix}:
+            </Text>
+            <Text
+              style={[styles.accountNameText, { color: colors.text }]}
+              numberOfLines={1}
+            >
+              {accountDisplayName}
+            </Text>
+          </View>
+          <View style={styles.accountRowRight}>
+            <Text
+              style={[
+                styles.accountBalanceHint,
+                { color: colors.textMuted },
+              ]}
+            >
+              Bal: {formatAmountPlain(accountBalance)}
+            </Text>
+            <AppIcon
+              name="chevron-down"
+              size={14}
+              color={colors.textMuted}
+            />
+          </View>
+        </Pressable>
+
+        {/* Row 3: Date */}
         <Pressable
           onPress={() => setDatePickerOpen(true)}
           style={[styles.fieldRow, { borderBottomColor: colors.border }]}
@@ -284,7 +419,7 @@ export default function TransactionSheetScreen() {
           </Text>
         </Pressable>
 
-        {/* Row 3: Note */}
+        {/* Row 4: Note */}
         <View style={[styles.fieldRow, { borderBottomColor: colors.border }]}>
           <View style={styles.fieldIconBox}>
             <AppIcon name="note" size={20} color={colors.textMuted} />
@@ -298,7 +433,7 @@ export default function TransactionSheetScreen() {
           />
         </View>
 
-        {/* Lower Dynamic Area: Category Grid OR Calculator Keypad */}
+        {/* Lower Dynamic Area: Category Grid | Subcategory Grid | Account Picker | Calculator */}
         <View style={styles.lowerArea}>
           {activePane === 'category' ? (
             <View style={styles.categoryPane}>
@@ -338,50 +473,6 @@ export default function TransactionSheetScreen() {
                   );
                 })}
               </View>
-
-              {/* Subcategory Chip Bar (when selected category has multiple subcategories) */}
-              {selectedCategory &&
-              selectedCategory.kind === kind &&
-              selectedCategory.subcategories.length > 1 ? (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.subcatScroll}
-                  style={styles.subcatBar}
-                >
-                  {selectedCategory.subcategories.map((sub) => {
-                    const isSubSelected =
-                      (subcategory || selectedCategory.subcategories[0]) === sub;
-                    return (
-                      <Pressable
-                        key={sub}
-                        onPress={() => setSubcategory(sub)}
-                        style={[
-                          styles.subcatChip,
-                          {
-                            backgroundColor: isSubSelected
-                              ? colors.primary
-                              : isDark
-                                ? '#2C2C2E'
-                                : '#F4F4F5',
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.subcatText,
-                            {
-                              color: isSubSelected ? '#FFFFFF' : colors.textSecondary,
-                            },
-                          ]}
-                        >
-                          {sub}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              ) : null}
 
               {/* 5-Column Category Icon Grid */}
               <ScrollView
@@ -439,6 +530,251 @@ export default function TransactionSheetScreen() {
                     Setting
                   </Text>
                 </Pressable>
+              </ScrollView>
+            </View>
+          ) : activePane === 'subcategory' && selectedCategory ? (
+            <View style={styles.subcatPane}>
+              <View
+                style={[
+                  styles.subcatHeader,
+                  { borderBottomColor: colors.border },
+                ]}
+              >
+                <Pressable
+                  onPress={() => setActivePane('category')}
+                  hitSlop={8}
+                  style={styles.backToCatsBtn}
+                >
+                  <AppIcon name="chevron-left" size={18} color={colors.primary} />
+                  <Text style={[styles.backToCatsText, { color: colors.primary }]}>
+                    Categories
+                  </Text>
+                </Pressable>
+
+                <View style={styles.subcatTitleCenter}>
+                  <CategoryBadge
+                    icon={selectedCategory.icon}
+                    color={selectedCategory.color}
+                    size={26}
+                  />
+                  <Text style={[styles.subcatHeaderTitle, { color: colors.text }]}>
+                    {selectedCategory.name}
+                  </Text>
+                </View>
+
+                <View style={{ width: 88 }} />
+              </View>
+
+              <ScrollView
+                contentContainerStyle={styles.subcatGrid}
+                showsVerticalScrollIndicator={false}
+              >
+                {selectedCategory.subcategories.map((sub) => {
+                  const isSubSelected =
+                    (subcategory || selectedCategory.subcategories[0]) === sub;
+                  return (
+                    <Pressable
+                      key={sub}
+                      onPress={() => handleSelectSubcategory(sub)}
+                      style={({ pressed }) => [
+                        styles.subcatCard,
+                        {
+                          backgroundColor: isSubSelected
+                            ? colors.primary
+                            : isDark
+                              ? '#262629'
+                              : '#F4F4F5',
+                          borderColor: isSubSelected
+                            ? colors.primary
+                            : colors.border,
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.subcatCardText,
+                          {
+                            color: isSubSelected ? '#FFFFFF' : colors.text,
+                            fontWeight: isSubSelected ? '700' : '500',
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {sub}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : activePane === 'account' ? (
+            <View style={styles.accountPane}>
+              <View
+                style={[
+                  styles.subcatHeader,
+                  { borderBottomColor: colors.border },
+                ]}
+              >
+                <Text style={[styles.accountPaneTitle, { color: colors.text }]}>
+                  {kind === 'income'
+                    ? 'Select Account to Deposit Income Into'
+                    : 'Select Account to Pay Expense From'}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    router.back();
+                    setTimeout(() => router.push('/(tabs)/accounts'), 50);
+                  }}
+                >
+                  <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>
+                    Manage
+                  </Text>
+                </Pressable>
+              </View>
+
+              <ScrollView
+                contentContainerStyle={styles.accountListContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {accountsWithBalances.map((acc) => {
+                  const isSelected = acc.id === accountId;
+                  return (
+                    <Pressable
+                      key={acc.id}
+                      onPress={() => {
+                        setAccountId(acc.id);
+                        setActivePane('category');
+                      }}
+                      style={({ pressed }) => [
+                        styles.accountOptionRow,
+                        {
+                          backgroundColor: isSelected
+                            ? isDark
+                              ? 'rgba(243,168,51,0.14)'
+                              : 'rgba(243,168,51,0.1)'
+                            : isDark
+                              ? '#242426'
+                              : '#F9FAFB',
+                          borderColor: isSelected ? colors.primary : colors.border,
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
+                    >
+                      <View>
+                        <Text
+                          style={[
+                            styles.accountOptionName,
+                            {
+                              color: isSelected ? colors.primary : colors.text,
+                            },
+                          ]}
+                        >
+                          {acc.name}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.accountOptionType,
+                            { color: colors.textMuted },
+                          ]}
+                        >
+                          {acc.type.toUpperCase()}
+                        </Text>
+                      </View>
+
+                      <Text
+                        style={[
+                          styles.accountOptionBal,
+                          {
+                            color:
+                              acc.balance >= 0 ? colors.income : colors.expense,
+                          },
+                        ]}
+                      >
+                        {formatAmountPlain(acc.balance)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+
+                {/* Quick Inline New Account Creator */}
+                <View
+                  style={[
+                    styles.quickAccountBox,
+                    {
+                      backgroundColor: isDark ? '#222225' : '#F4F4F5',
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.quickAccountTitle,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    + Quick Add Account
+                  </Text>
+                  <View style={styles.quickAccountInputRow}>
+                    <TextInput
+                      value={newAccName}
+                      onChangeText={setNewAccName}
+                      placeholder="Account name (e.g. DBS, Cash)"
+                      placeholderTextColor={colors.textMuted}
+                      style={[
+                        styles.quickAccountInput,
+                        {
+                          backgroundColor: isDark ? '#18181A' : '#FFFFFF',
+                          color: colors.text,
+                          borderColor: colors.border,
+                        },
+                      ]}
+                    />
+                    <Pressable
+                      onPress={handleQuickCreateAccount}
+                      style={[
+                        styles.quickAccountAddBtn,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Text style={styles.quickAccountAddBtnText}>Add</Text>
+                    </Pressable>
+                  </View>
+                  <View style={styles.quickAccountTypes}>
+                    {(['checking', 'savings', 'cash', 'credit'] as const).map(
+                      (t) => (
+                        <Pressable
+                          key={t}
+                          onPress={() => setNewAccType(t)}
+                          style={[
+                            styles.quickTypeChip,
+                            {
+                              backgroundColor:
+                                newAccType === t
+                                  ? colors.primary
+                                  : isDark
+                                    ? '#2C2C2E'
+                                    : '#E5E7EB',
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              fontWeight: '600',
+                              color:
+                                newAccType === t
+                                  ? '#FFFFFF'
+                                  : colors.textSecondary,
+                            }}
+                          >
+                            {t.toUpperCase()}
+                          </Text>
+                        </Pressable>
+                      )
+                    )}
+                  </View>
+                </View>
               </ScrollView>
             </View>
           ) : activePane === 'calculator' ? (
@@ -537,7 +873,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   dismissTop: {
-    height: 36,
+    height: 32,
   },
   sheet: {
     flex: 1,
@@ -574,18 +910,18 @@ const styles = StyleSheet.create({
   },
   amountArea: {
     paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 14,
+    paddingTop: 4,
+    paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   exprText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: 2,
     fontVariant: ['tabular-nums'],
   },
   amountValue: {
-    fontSize: 40,
+    fontSize: 38,
     fontWeight: '500',
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.6,
@@ -599,26 +935,59 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
-    height: 58,
-    gap: 14,
+    height: 52,
+    gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   fieldIconBox: {
-    width: 38,
+    width: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   fieldTextPrimary: {
-    fontSize: 15.5,
+    fontSize: 15,
     fontWeight: '500',
   },
   fieldTextSecondary: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '400',
+  },
+  subcatTriggerPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  subcatTriggerText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  accountRowCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  accountRoleText: {
+    fontSize: 13.5,
+    fontWeight: '500',
+  },
+  accountNameText: {
+    fontSize: 14.5,
+    fontWeight: '600',
+    flex: 1,
+  },
+  accountRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  accountBalanceHint: {
+    fontSize: 12.5,
+    fontVariant: ['tabular-nums'],
   },
   noteInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14.5,
     height: '100%',
   },
   lowerArea: {
@@ -629,7 +998,7 @@ const styles = StyleSheet.create({
   },
   categoryPane: {
     flex: 1,
-    paddingTop: 14,
+    paddingTop: 12,
   },
   segmentTrack: {
     flexDirection: 'row',
@@ -637,7 +1006,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     borderRadius: 9,
     padding: 2,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   segmentBtn: {
     flex: 1,
@@ -650,47 +1019,155 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  subcatBar: {
-    maxHeight: 40,
-    marginBottom: 8,
-  },
-  subcatScroll: {
-    paddingHorizontal: 16,
-    gap: 8,
-    alignItems: 'center',
-  },
-  subcatChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-  },
-  subcatText: {
-    fontSize: 12.5,
-    fontWeight: '600',
-  },
   catGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 8,
-    paddingTop: 6,
+    paddingTop: 4,
     paddingBottom: 20,
   },
   catGridItem: {
     width: '20%',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 16,
     paddingHorizontal: 2,
   },
   catGridLabel: {
     fontSize: 11.5,
-    marginTop: 6,
+    marginTop: 5,
     textAlign: 'center',
+  },
+  subcatPane: {
+    flex: 1,
+  },
+  subcatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  backToCatsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    width: 88,
+  },
+  backToCatsText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+  },
+  subcatTitleCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  subcatHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  subcatGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 14,
+    gap: 10,
+  },
+  subcatCard: {
+    width: '48%',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subcatCardText: {
+    fontSize: 14,
+  },
+  accountPane: {
+    flex: 1,
+  },
+  accountPaneTitle: {
+    fontSize: 13.5,
+    fontWeight: '600',
+  },
+  accountListContent: {
+    padding: 14,
+    gap: 10,
+  },
+  accountOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  accountOptionName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  accountOptionType: {
+    fontSize: 11.5,
+    marginTop: 2,
+  },
+  accountOptionBal: {
+    fontSize: 15,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  quickAccountBox: {
+    marginTop: 6,
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  quickAccountTitle: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  quickAccountInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  quickAccountInput: {
+    flex: 1,
+    borderRadius: radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13.5,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  quickAccountAddBtn: {
+    paddingHorizontal: 14,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickAccountAddBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '600',
+  },
+  quickAccountTypes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  quickTypeChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
   },
   calcPad: {
     flex: 1,
     justifyContent: 'space-evenly',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   calcRow: {
     flexDirection: 'row',
@@ -704,15 +1181,15 @@ const styles = StyleSheet.create({
   },
   calcNumBtn: {
     width: 64,
-    height: 52,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 26,
+    borderRadius: 24,
   },
   calcOpCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
   },

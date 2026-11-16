@@ -12,9 +12,11 @@ import {
   getCategoryBreakdown,
   getMonthDateRange,
   getMonthlySummary,
+  listAccounts,
   listCategories,
   listTransactions,
   shiftYearMonth,
+  type CategoryKind,
   type DonutSliceInput,
 } from '@mm/core';
 import { useVault } from '../../src/data/VaultContext';
@@ -32,23 +34,29 @@ import {
 import { radius, useTheme } from '../../src/ui/theme';
 
 export default function HomeScreen() {
-  const { store, role, lanState } = useVault();
+  const {
+    store,
+    role,
+    lanState,
+    selectedMonth,
+    setSelectedMonth,
+    setSelectedDate,
+  } = useVault();
   const { colors, isDark } = useTheme();
   const router = useRouter();
 
-  const [selectedMonth, setSelectedMonth] = useState(() =>
-    new Date().toISOString().slice(0, 7)
-  );
+  const [cardKind, setCardKind] = useState<CategoryKind>('expense');
   const [showAllDays, setShowAllDays] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const range = getMonthDateRange(selectedMonth);
   const summary = getMonthlySummary(store, selectedMonth);
-  const breakdown = getCategoryBreakdown(store, selectedMonth, 'expense');
+  const breakdown = getCategoryBreakdown(store, selectedMonth, cardKind);
   const txs = listTransactions(store, { month: selectedMonth });
   const dayGroups = groupTransactionsByDay(txs);
   const visibleGroups = showAllDays ? dayGroups : dayGroups.slice(0, 5);
   const categoryMap = new Map(listCategories(store).map((c) => [c.id, c]));
+  const accountMap = new Map(listAccounts(store).map((a) => [a.id, a]));
 
   const donutData: DonutSliceInput[] = breakdown.map((item) => ({
     id: item.categoryId,
@@ -56,6 +64,20 @@ export default function HomeScreen() {
     value: item.amount,
     color: item.color,
   }));
+
+  const toggleCardKind = () => {
+    setCardKind((prev) => (prev === 'expense' ? 'income' : 'expense'));
+  };
+
+  const handleOpenBreakdown = (kindOverride?: CategoryKind, focusCategoryId?: string) => {
+    const targetKind = kindOverride ?? cardKind;
+    const focusParam = focusCategoryId
+      ? `&focus=${encodeURIComponent(focusCategoryId)}`
+      : '';
+    router.push(
+      `/breakdown?month=${encodeURIComponent(selectedMonth)}&kind=${targetKind}${focusParam}`
+    );
+  };
 
   const handleSyncPress = () => {
     if (role === 'web-thin-client') {
@@ -87,15 +109,37 @@ export default function HomeScreen() {
           <AppIcon name="menu" size={23} color={colors.text} />
         </Pressable>
 
-        <Pressable
-          onPress={handleSyncPress}
-          hitSlop={10}
-          style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
-          accessibilityRole="button"
-          accessibilityLabel="Sync or manage web server"
-        >
-          <AppIcon name="sync" size={21} color={colors.text} />
-        </Pressable>
+        <View style={styles.topBarRight}>
+          <Pressable
+            onPress={() => router.push('/(tabs)/accounts')}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.accountsBtn,
+              {
+                backgroundColor: isDark ? '#212121' : '#F4F4F5',
+                borderColor: colors.border,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Open accounts view"
+          >
+            <AppIcon name="banknotes" size={16} color={colors.primary} />
+            <Text style={[styles.accountsBtnText, { color: colors.text }]}>
+              Accounts
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={handleSyncPress}
+            hitSlop={10}
+            style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Sync or manage web server"
+          >
+            <AppIcon name="sync" size={21} color={colors.text} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -122,39 +166,158 @@ export default function HomeScreen() {
             },
           ]}
         >
-          <View
-            style={[
+          {/* Card Header — Tapping opens Dedicated Decomposition Page */}
+          <Pressable
+            onPress={() => handleOpenBreakdown(cardKind)}
+            style={({ pressed }) => [
               styles.cardHeader,
-              { borderBottomColor: colors.border },
+              {
+                borderBottomColor: colors.border,
+                opacity: pressed ? 0.72 : 1,
+              },
             ]}
+            accessibilityRole="button"
+            accessibilityLabel="Open monthly decomposition view"
           >
-            <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
-              {range.monthLabel}'s balance
-            </Text>
-          </View>
+            <View style={styles.cardHeaderLeft}>
+              <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
+                {range.monthLabel}'s balance
+              </Text>
+              <View
+                style={[
+                  styles.modePill,
+                  {
+                    backgroundColor:
+                      cardKind === 'expense'
+                        ? isDark
+                          ? 'rgba(232,92,92,0.16)'
+                          : 'rgba(220,38,38,0.1)'
+                        : isDark
+                          ? 'rgba(46,184,114,0.16)'
+                          : 'rgba(22,163,74,0.1)',
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.modePillText,
+                    {
+                      color:
+                        cardKind === 'expense' ? colors.expense : colors.income,
+                    },
+                  ]}
+                >
+                  {cardKind === 'expense' ? 'Expense' : 'Income'}
+                </Text>
+              </View>
+            </View>
 
-          <View style={styles.balanceBody}>
+            <View style={styles.breakdownLink}>
+              <Text style={[styles.breakdownLinkText, { color: colors.textMuted }]}>
+                Breakdown
+              </Text>
+              <AppIcon name="chevron-right" size={15} color={colors.textMuted} />
+            </View>
+          </Pressable>
+
+          {/* Card Body — Tapping the card element toggles between Expense and Income */}
+          <Pressable
+            onPress={toggleCardKind}
+            style={({ pressed }) => [
+              styles.balanceBody,
+              { opacity: pressed ? 0.88 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Tap to toggle between Expense and Income chart"
+          >
             <DonutChart
               data={donutData}
               size={136}
-              centerLabel="Expense"
+              centerLabel={cardKind === 'expense' ? 'Expense' : 'Income'}
+              centerSubLabel="Tap to flip"
               maxLabelChars={10}
+              onCenterPress={toggleCardKind}
+              onSlicePress={toggleCardKind}
             />
 
             <View style={styles.balanceStats}>
-              <View style={styles.statRow}>
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>
-                  Income
-                </Text>
+              <View
+                style={[
+                  styles.statRow,
+                  cardKind === 'income' && {
+                    backgroundColor: isDark
+                      ? 'rgba(46,184,114,0.1)'
+                      : 'rgba(22,163,74,0.08)',
+                    borderRadius: 6,
+                    paddingHorizontal: 6,
+                    marginHorizontal: -6,
+                  },
+                ]}
+              >
+                <View style={styles.statLabelWrap}>
+                  <View
+                    style={[
+                      styles.activeDot,
+                      {
+                        backgroundColor:
+                          cardKind === 'income' ? colors.income : 'transparent',
+                      },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.statLabel,
+                      {
+                        color:
+                          cardKind === 'income' ? colors.text : colors.textMuted,
+                        fontWeight: cardKind === 'income' ? '600' : '500',
+                      },
+                    ]}
+                  >
+                    Income
+                  </Text>
+                </View>
                 <Text style={[styles.statAmount, { color: colors.income }]}>
                   {formatAmountPlain(summary.income)}
                 </Text>
               </View>
 
-              <View style={styles.statRow}>
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>
-                  Expense
-                </Text>
+              <View
+                style={[
+                  styles.statRow,
+                  cardKind === 'expense' && {
+                    backgroundColor: isDark
+                      ? 'rgba(232,92,92,0.1)'
+                      : 'rgba(220,38,38,0.08)',
+                    borderRadius: 6,
+                    paddingHorizontal: 6,
+                    marginHorizontal: -6,
+                  },
+                ]}
+              >
+                <View style={styles.statLabelWrap}>
+                  <View
+                    style={[
+                      styles.activeDot,
+                      {
+                        backgroundColor:
+                          cardKind === 'expense' ? colors.expense : 'transparent',
+                      },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.statLabel,
+                      {
+                        color:
+                          cardKind === 'expense' ? colors.text : colors.textMuted,
+                        fontWeight: cardKind === 'expense' ? '600' : '500',
+                      },
+                    ]}
+                  >
+                    Expense
+                  </Text>
+                </View>
                 <Text style={[styles.statAmount, { color: colors.expense }]}>
                   {formatAmountPlain(summary.expense)}
                 </Text>
@@ -176,13 +339,24 @@ export default function HomeScreen() {
                 </Text>
               </View>
             </View>
-          </View>
+          </Pressable>
         </View>
 
         {/* Monthly Transactions Section */}
-        <Text style={[styles.sectionHeading, { color: colors.text }]}>
-          {range.monthLabel} transactions
-        </Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>
+            {range.monthLabel} transactions
+          </Text>
+          <Pressable
+            onPress={() => handleOpenBreakdown(cardKind)}
+            hitSlop={8}
+            style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1 })}
+          >
+            <Text style={[styles.decompositionLink, { color: colors.primary }]}>
+              View decomposition
+            </Text>
+          </Pressable>
+        </View>
 
         {visibleGroups.length === 0 ? (
           <View
@@ -205,6 +379,12 @@ export default function HomeScreen() {
               key={group.date}
               group={group}
               categoryMap={categoryMap}
+              accountMap={accountMap}
+              onPressDayHeader={(dateStr) => {
+                setSelectedDate(dateStr);
+                setSelectedMonth(dateStr.slice(0, 7));
+                router.push('/(tabs)/calendar');
+              }}
               onSelectTransaction={(tx) =>
                 router.push(`/transaction/new?id=${encodeURIComponent(tx.id)}`)
               }
@@ -254,6 +434,24 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  topBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  accountsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  accountsBtnText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
   iconBtn: {
     padding: 4,
   },
@@ -272,13 +470,39 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   cardHeaderTitle: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  modePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+  },
+  modePillText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  breakdownLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  breakdownLinkText: {
+    fontSize: 12.5,
+    fontWeight: '500',
   },
   balanceBody: {
     flexDirection: 'row',
@@ -295,11 +519,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  statLabelWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   statLabel: {
     fontSize: 13.5,
-    fontWeight: '500',
   },
   statAmount: {
     fontSize: 14.5,
@@ -308,7 +542,7 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     height: StyleSheet.hairlineWidth,
-    marginVertical: 10,
+    marginVertical: 8,
   },
   balanceTotalRow: {
     flexDirection: 'row',
@@ -325,11 +559,20 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.5,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
   sectionHeading: {
     fontSize: 18,
     fontWeight: '700',
-    marginBottom: 12,
-    paddingHorizontal: 4,
+  },
+  decompositionLink: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   emptyCard: {
     borderRadius: radius.lg,

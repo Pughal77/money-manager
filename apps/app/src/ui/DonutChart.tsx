@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, Line, Text as SvgText, G } from 'react-native-svg';
 import { computeDonutSlices, type DonutSliceInput } from '@mm/core';
 import { useTheme } from './theme';
@@ -8,20 +8,92 @@ export function DonutChart({
   data,
   size = 200,
   centerLabel,
+  centerSubLabel,
   maxLabelChars = 11,
+  selectedSliceId,
+  onSlicePress,
+  onCenterPress,
 }: {
   data: DonutSliceInput[];
   size?: number;
   centerLabel?: string;
+  centerSubLabel?: string;
   maxLabelChars?: number;
+  selectedSliceId?: string | null;
+  onSlicePress?: (sliceId: string) => void;
+  onCenterPress?: () => void;
 }) {
   const { colors } = useTheme();
   const cx = size / 2;
   const cy = size / 2;
   const outerRadius = Math.round(size * 0.45);
   const innerRadius = Math.round(size * 0.215);
+  const centerHoleDiameter = innerRadius * 2;
 
   const computed = computeDonutSlices(data, cx, cy, outerRadius, innerRadius);
+
+  const renderCenterOverlay = (empty: boolean) => {
+    if (!centerLabel && !centerSubLabel) return null;
+    const content = (
+      <>
+        {centerLabel ? (
+          <Text
+            style={[
+              styles.centerLabel,
+              {
+                color: empty ? colors.textMuted : colors.textSecondary,
+                fontSize: size < 160 ? 11.5 : 13,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {centerLabel}
+          </Text>
+        ) : null}
+        {centerSubLabel ? (
+          <Text
+            style={[
+              styles.centerSubLabel,
+              {
+                color: colors.textMuted,
+                fontSize: size < 160 ? 9.5 : 10.5,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {centerSubLabel}
+          </Text>
+        ) : null}
+      </>
+    );
+
+    if (onCenterPress) {
+      return (
+        <View style={styles.centerOverlay} pointerEvents="box-none">
+          <Pressable
+            onPress={onCenterPress}
+            style={({ pressed }) => [
+              styles.centerHitTarget,
+              {
+                width: centerHoleDiameter,
+                height: centerHoleDiameter,
+                borderRadius: innerRadius,
+                opacity: pressed ? 0.72 : 1,
+              },
+            ]}
+          >
+            {content}
+          </Pressable>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.centerOverlay} pointerEvents="none">
+        {content}
+      </View>
+    );
+  };
 
   if (computed.total <= 0 || computed.slices.length === 0) {
     const midR = (outerRadius + innerRadius) / 2;
@@ -39,11 +111,7 @@ export function DonutChart({
             opacity={0.45}
           />
         </Svg>
-        {centerLabel ? (
-          <View style={styles.centerOverlay} pointerEvents="none">
-            <Text style={[styles.centerLabel, { color: colors.textMuted }]}>{centerLabel}</Text>
-          </View>
-        ) : null}
+        {renderCenterOverlay(true)}
       </View>
     );
   }
@@ -52,10 +120,21 @@ export function DonutChart({
     <View style={[styles.wrap, { width: size, height: size }]}>
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {computed.isSingleFullRing ? (
-          <G>
+          <G
+            onPress={
+              onSlicePress
+                ? () => onSlicePress(computed.slices[0].id)
+                : undefined
+            }
+          >
             <Path
               d={computed.slices[0].pathData}
               fill={computed.slices[0].color}
+              opacity={
+                selectedSliceId && selectedSliceId !== computed.slices[0].id
+                  ? 0.5
+                  : 1
+              }
             />
             {/* 12-o'clock divider tick as shown in the 100% single-slice reference photo */}
             <Line
@@ -78,46 +157,42 @@ export function DonutChart({
             </SvgText>
           </G>
         ) : (
-          computed.slices.map((slice) => (
-            <G key={slice.id}>
-              <Path
-                d={slice.pathData}
-                fill={slice.color}
-                stroke={colors.surface}
-                strokeWidth={1.5}
-              />
-              {slice.showLabel ? (
-                <SvgText
-                  x={slice.labelX}
-                  y={slice.labelY + 4}
-                  fill="#2C2C2E"
-                  fontSize={size < 160 ? 11 : 12.5}
-                  fontWeight="600"
-                  textAnchor="middle"
-                >
-                  {truncateLabel(slice.label, maxLabelChars)}
-                </SvgText>
-              ) : null}
-            </G>
-          ))
+          computed.slices.map((slice) => {
+            const isDimmed =
+              Boolean(selectedSliceId) && selectedSliceId !== slice.id;
+            const isSelected = selectedSliceId === slice.id;
+            return (
+              <G
+                key={slice.id}
+                onPress={onSlicePress ? () => onSlicePress(slice.id) : undefined}
+              >
+                <Path
+                  d={slice.pathData}
+                  fill={slice.color}
+                  stroke={isSelected ? colors.primary : colors.surface}
+                  strokeWidth={isSelected ? 2.5 : 1.5}
+                  opacity={isDimmed ? 0.45 : 1}
+                />
+                {slice.showLabel ? (
+                  <SvgText
+                    x={slice.labelX}
+                    y={slice.labelY + 4}
+                    fill="#2C2C2E"
+                    fontSize={size < 160 ? 11 : 12.5}
+                    fontWeight="600"
+                    textAnchor="middle"
+                    opacity={isDimmed ? 0.55 : 1}
+                  >
+                    {truncateLabel(slice.label, maxLabelChars)}
+                  </SvgText>
+                ) : null}
+              </G>
+            );
+          })
         )}
       </Svg>
 
-      {centerLabel ? (
-        <View style={styles.centerOverlay} pointerEvents="none">
-          <Text
-            style={[
-              styles.centerLabel,
-              {
-                color: colors.textSecondary,
-                fontSize: size < 160 ? 11 : 12,
-              },
-            ]}
-          >
-            {centerLabel}
-          </Text>
-        </View>
-      ) : null}
+      {renderCenterOverlay(false)}
     </View>
   );
 }
@@ -138,7 +213,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  centerHitTarget: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
   centerLabel: {
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  centerSubLabel: {
+    fontWeight: '500',
+    marginTop: 1,
+    textAlign: 'center',
   },
 });

@@ -4,6 +4,7 @@ import {
   formatAmountPlain,
   formatDayCardHeader,
   formatTransactionTitle,
+  type Account,
   type Category,
   type Transaction,
 } from '@mm/core';
@@ -43,13 +44,18 @@ export function groupTransactionsByDay(transactions: Transaction[]): DayGroup[] 
 export function TransactionDayCard({
   group,
   categoryMap,
+  accountMap,
   onSelectTransaction,
+  onPressDayHeader,
 }: {
   group: DayGroup;
   categoryMap: Map<string, Category>;
+  accountMap?: Map<string, Account>;
   onSelectTransaction: (tx: Transaction) => void;
+  onPressDayHeader?: (date: string) => void;
 }) {
   const { colors, isDark } = useTheme();
+  const showAccountPill = Boolean(accountMap && accountMap.size > 1);
 
   return (
     <View
@@ -63,14 +69,26 @@ export function TransactionDayCard({
       ]}
     >
       {/* Day Header */}
-      <View style={[styles.dayHeader, { borderBottomColor: colors.border }]}>
+      <Pressable
+        disabled={!onPressDayHeader}
+        onPress={() => onPressDayHeader?.(group.date)}
+        style={({ pressed }) => [
+          styles.dayHeader,
+          {
+            borderBottomColor: colors.border,
+            opacity: pressed && onPressDayHeader ? 0.72 : 1,
+          },
+        ]}
+      >
         <Text style={[styles.dayTitle, { color: colors.text }]}>
           {formatDayCardHeader(group.date)}
         </Text>
         <View style={styles.dayTotals}>
           {group.incomeTotal > 0 ? (
             <View style={styles.dayTotalPair}>
-              <Text style={[styles.dayTotalLabel, { color: colors.income }]}>Income</Text>
+              <Text style={[styles.dayTotalLabel, { color: colors.income }]}>
+                Income
+              </Text>
               <Text style={[styles.dayTotalAmount, { color: colors.income }]}>
                 {formatAmountPlain(group.incomeTotal)}
               </Text>
@@ -78,19 +96,22 @@ export function TransactionDayCard({
           ) : null}
           {group.expenseTotal > 0 ? (
             <View style={styles.dayTotalPair}>
-              <Text style={[styles.dayTotalLabel, { color: colors.textMuted }]}>Expense</Text>
+              <Text style={[styles.dayTotalLabel, { color: colors.textMuted }]}>
+                Expense
+              </Text>
               <Text style={[styles.dayTotalAmount, { color: colors.text }]}>
                 {formatAmountPlain(group.expenseTotal)}
               </Text>
             </View>
           ) : null}
         </View>
-      </View>
+      </Pressable>
 
       {/* Transaction Rows */}
       <View style={styles.txList}>
         {group.transactions.map((tx) => {
           const cat = categoryMap.get(tx.categoryId);
+          const acc = accountMap?.get(tx.accountId);
           const title = formatTransactionTitle(cat, tx);
           const badgeColor =
             cat?.color ?? (tx.kind === 'income' ? '#FCE07D' : '#CBD5E1');
@@ -115,15 +136,39 @@ export function TransactionDayCard({
                 >
                   {title}
                 </Text>
-                {tx.note ? (
+                {tx.note || (showAccountPill && acc) ? (
                   <View style={styles.noteRow}>
-                    <AppIcon name="note" size={13} color={colors.textMuted} />
-                    <Text
-                      style={[styles.txNote, { color: colors.textMuted }]}
-                      numberOfLines={1}
-                    >
-                      {tx.note}
-                    </Text>
+                    {showAccountPill && acc ? (
+                      <View
+                        style={[
+                          styles.accountPill,
+                          {
+                            backgroundColor: isDark ? '#2C2C2E' : '#F3F4F6',
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.accountPillText,
+                            { color: colors.textSecondary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {acc.name}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {tx.note ? (
+                      <View style={styles.noteTextWrap}>
+                        <AppIcon name="note" size={13} color={colors.textMuted} />
+                        <Text
+                          style={[styles.txNote, { color: colors.textMuted }]}
+                          numberOfLines={1}
+                        >
+                          {tx.note}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                 ) : null}
               </View>
@@ -197,10 +242,26 @@ const styles = StyleSheet.create({
   noteRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
     marginTop: 1,
   },
+  accountPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+  },
+  accountPillText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  noteTextWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
   txNote: {
+    flex: 1,
     fontSize: 13,
     fontWeight: '400',
   },

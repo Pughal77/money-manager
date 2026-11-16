@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Pressable,
   ScrollView,
@@ -13,6 +13,7 @@ import {
   formatDayCardHeader,
   getDailyCalendarTotals,
   getMonthDateRange,
+  listAccounts,
   listCategories,
   listTransactions,
   shiftYearMonth,
@@ -29,13 +30,15 @@ import { radius, useTheme } from '../../src/ui/theme';
 const WEEKDAYS_MON_FIRST = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function CalendarScreen() {
-  const { store } = useVault();
+  const {
+    store,
+    selectedMonth,
+    setSelectedMonth,
+    selectedDate,
+    setSelectedDate,
+  } = useVault();
   const { colors, isDark } = useTheme();
   const router = useRouter();
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const [selectedMonth, setSelectedMonth] = useState(() => todayStr.slice(0, 7));
-  const [selectedDate, setSelectedDate] = useState(() => todayStr);
 
   const range = getMonthDateRange(selectedMonth);
   const cells = buildCalendarMonthGrid(selectedMonth, true);
@@ -48,6 +51,7 @@ export default function CalendarScreen() {
   const selectedDayTxs = listTransactions(store, { date: selectedDate });
   const selectedDayGroups = groupTransactionsByDay(selectedDayTxs);
   const categoryMap = new Map(listCategories(store).map((c) => [c.id, c]));
+  const accountMap = new Map(listAccounts(store).map((a) => [a.id, a]));
 
   const handleChangeMonth = (delta: number) => {
     const nextMonth = shiftYearMonth(selectedMonth, delta);
@@ -179,6 +183,7 @@ export default function CalendarScreen() {
               key={group.date}
               group={group}
               categoryMap={categoryMap}
+              accountMap={accountMap}
               onSelectTransaction={(tx) =>
                 router.push(`/transaction/new?id=${encodeURIComponent(tx.id)}`)
               }

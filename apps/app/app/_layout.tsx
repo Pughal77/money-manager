@@ -34,6 +34,12 @@ function ThemedAppShell() {
             }}
           />
           <Stack.Screen
+            name="breakdown"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
             name="category/[id]"
             options={{
               headerShown: false,

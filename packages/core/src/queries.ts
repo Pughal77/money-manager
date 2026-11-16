@@ -35,6 +35,21 @@ export function listAccounts(store: MergeableStore): Account[] {
   return results.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export function getAccountById(store: MergeableStore, id: string): Account | undefined {
+  if (!id || !store.hasRow('accounts', id)) return undefined;
+  const row = store.getRow('accounts', id);
+  if (row.deleted) return undefined;
+  return {
+    id,
+    name: String(row.name ?? ''),
+    type: (row.type as AccountType) ?? 'checking',
+    openingBalance: Number(row.openingBalance ?? 0),
+    color: String(row.color ?? '#F3A833'),
+    createdAt: String(row.createdAt ?? ''),
+    deleted: Boolean(row.deleted),
+  };
+}
+
 export function listCategories(store: MergeableStore, kind?: CategoryKind): Category[] {
   const table = store.getTable('categories');
   const results: Category[] = [];
@@ -349,6 +364,7 @@ export interface CategoryBreakdownItem {
   color: string;
   amount: Cents;
   percentage: number; // 0..100
+  transactionCount: number;
 }
 
 export function getCategoryBreakdown(
@@ -379,10 +395,12 @@ function buildCategoryBreakdown(
   const catMap = new Map(categories.map((c) => [c.id, c]));
 
   const sums = new Map<string, number>();
+  const counts = new Map<string, number>();
   let total = 0;
   for (const tx of txs) {
     const key = tx.categoryId || 'uncategorized';
     sums.set(key, (sums.get(key) ?? 0) + tx.amount);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
     total += tx.amount;
   }
 
@@ -396,6 +414,7 @@ function buildCategoryBreakdown(
       color: cat?.color ?? (kind === 'income' ? '#FCE07D' : '#CBD5E1'),
       amount,
       percentage: total > 0 ? Math.round((amount / total) * 1000) / 10 : 0,
+      transactionCount: counts.get(catId) ?? 0,
     });
   }
   return items.sort((a, b) => b.amount - a.amount);
@@ -406,6 +425,7 @@ export interface SubcategoryBreakdownItem {
   color: string;
   amount: Cents;
   percentage: number;
+  transactionCount: number;
 }
 
 export function getSubcategoryBreakdown(
@@ -420,14 +440,17 @@ export function getSubcategoryBreakdown(
   const baseColor = cat?.color ?? '#F29B9B';
 
   const sums = new Map<string, number>();
+  const counts = new Map<string, number>();
   for (const sub of presetSubs) {
     sums.set(sub, 0);
+    counts.set(sub, 0);
   }
 
   let total = 0;
   for (const tx of txs) {
     const sub = tx.subcategory || presetSubs[0] || 'Other';
     sums.set(sub, (sums.get(sub) ?? 0) + tx.amount);
+    counts.set(sub, (counts.get(sub) ?? 0) + 1);
     total += tx.amount;
   }
 
@@ -438,6 +461,7 @@ export function getSubcategoryBreakdown(
       color: baseColor,
       amount,
       percentage: total > 0 ? Math.round((amount / total) * 1000) / 10 : 0,
+      transactionCount: counts.get(subcategory) ?? 0,
     });
   }
 
