@@ -18,9 +18,11 @@ import { webSyncClient } from '../../src/platform/client';
 import { phoneLanServer } from '../../src/server/lanServer';
 import { Button, Card } from '../../src/ui/components';
 import { colors, radius, spacing } from '../../src/ui/theme';
+import { useResponsive } from '../../src/ui/useResponsive';
 
 export default function SettingsScreen() {
   const { store, role, webState, lanState } = useVault();
+  const { isDesktop } = useResponsive();
   const [phoneUrlInput, setPhoneUrlInput] = useState(webState.phoneUrl);
   const [deviceNameInput, setDeviceNameInput] = useState(webState.deviceName);
   const [restoreMode, setRestoreMode] = useState<RestoreMode>('merge');
@@ -76,8 +78,16 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {role === 'phone-master' ? (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={[
+        styles.content,
+        isDesktop && styles.desktopContent,
+      ]}
+    >
+      <View style={isDesktop ? styles.desktopRow : styles.mobileCol}>
+        <View style={isDesktop ? styles.desktopCol : styles.mobileCol}>
+          {role === 'phone-master' ? (
         <Card>
           <Text style={styles.title}>iPhone Local Network Web Access</Text>
           <Text style={styles.sub}>
@@ -220,9 +230,11 @@ export default function SettingsScreen() {
           </View>
         </Card>
       )}
+      </View>
 
-      <Card>
-        <Text style={styles.title}>CSV ZIP Backup & Restore</Text>
+      <View style={isDesktop ? styles.desktopCol : styles.mobileCol}>
+        <Card>
+          <Text style={styles.title}>CSV ZIP Backup & Restore</Text>
         <Text style={styles.sub}>
           Export all accounts, categories, transactions, and budgets as a ZIP of
           CSV files, or restore from a previous backup.
@@ -273,13 +285,35 @@ export default function SettingsScreen() {
           <Text style={styles.backupFeedback}>{backupMessage}</Text>
         )}
       </Card>
-    </ScrollView>
+      </View>
+    </View>
+  </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, maxWidth: 920, width: '100%', alignSelf: 'center' },
+  desktopContent: {
+    maxWidth: 1200,
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  desktopRow: {
+    flexDirection: 'row',
+    gap: 28,
+    alignItems: 'flex-start',
+  },
+  desktopCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 16,
+  },
+  mobileCol: {
+    width: '100%',
+    gap: 16,
+  },
   title: { color: colors.text, fontSize: 18, fontWeight: '800' },
   sub: { color: colors.textSecondary, fontSize: 13, marginTop: 4, lineHeight: 19 },
   label: {

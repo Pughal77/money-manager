@@ -25,10 +25,12 @@ import { DonutChart } from '../src/ui/DonutChart';
 import { AppIcon, CategoryBadge } from '../src/ui/icons';
 import { PeriodHeader } from '../src/ui/PeriodHeader';
 import { radius, useTheme } from '../src/ui/theme';
+import { useResponsive } from '../src/ui/useResponsive';
 
 export default function BreakdownScreen() {
   const { store, selectedMonth, setSelectedMonth } = useVault();
   const { colors, isDark } = useTheme();
+  const { isDesktop } = useResponsive();
   const router = useRouter();
   const params = useLocalSearchParams<{
     month?: string;
@@ -147,220 +149,250 @@ export default function BreakdownScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          isDesktop && styles.desktopContent,
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Period Selector */}
-        <PeriodHeader
-          monthLabel={range.monthLabel}
-          rangeLabel={range.rangeLabel}
-          onPrev={handlePrev}
-          onNext={handleNext}
-        />
-
-        {/* Expense | Income Segmented Switcher */}
-        <View
-          style={[
-            styles.segmentTrack,
-            { backgroundColor: isDark ? '#262629' : '#E5E7EB' },
-          ]}
-        >
-          {(['expense', 'income'] as const).map((k) => {
-            const active = kind === k;
-            return (
-              <Pressable
-                key={k}
-                onPress={() => {
-                  setKind(k);
-                  setSelectedSliceId(null);
-                }}
-                style={[
-                  styles.segmentBtn,
-                  active && { backgroundColor: colors.primary },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.segmentLabel,
-                    {
-                      color: active
-                        ? '#FFFFFF'
-                        : isDark
-                          ? '#AEAEB2'
-                          : '#4B5563',
-                    },
-                  ]}
-                >
-                  {k === 'expense'
-                    ? `Expense (${formatAmountPlain(summary.expense)})`
-                    : `Income (${formatAmountPlain(summary.income)})`}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Decomposition Card */}
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              borderWidth: isDark ? 0 : 1,
-            },
-          ]}
-        >
-          <View style={[styles.cardHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
-              {range.monthLabel}'s {kind === 'expense' ? 'expense' : 'income'} decomposition
-            </Text>
-            {selectedSliceId ? (
-              <Pressable
-                onPress={() => setSelectedSliceId(null)}
-                hitSlop={8}
-              >
-                <Text style={{ color: colors.primary, fontSize: 12.5, fontWeight: '600' }}>
-                  Reset selection
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-
-          {/* Interactive Donut Chart */}
-          <View style={styles.chartWrap}>
-            <DonutChart
-              data={donutData}
-              size={224}
-              centerLabel={kind === 'expense' ? 'Expense' : 'Income'}
-              maxLabelChars={11}
-              selectedSliceId={selectedSliceId}
-              onSlicePress={handleSlicePress}
-              onCenterPress={() => {
-                setKind((prev) => (prev === 'expense' ? 'income' : 'expense'));
-                setSelectedSliceId(null);
-              }}
+        <View style={isDesktop ? styles.desktopLayout : styles.mobileLayout}>
+          {/* Left Column on Desktop / Top on Mobile */}
+          <View style={isDesktop ? styles.desktopColLeft : styles.mobileCol}>
+            {/* Period Selector */}
+            <PeriodHeader
+              monthLabel={range.monthLabel}
+              rangeLabel={range.rangeLabel}
+              onPrev={handlePrev}
+              onNext={handleNext}
             />
-            {items.length > 0 ? (
-              <Text style={[styles.chartHint, { color: colors.textMuted }]}>
-                Tap a slice to highlight (tap again to drill in), or tap center to switch
-              </Text>
-            ) : null}
-          </View>
 
-          {/* Total Header Row */}
-          <View style={styles.listSection}>
+            {/* Expense | Income Segmented Switcher */}
             <View
               style={[
-                styles.totalRow,
-                { borderBottomColor: colors.border },
+                styles.segmentTrack,
+                { backgroundColor: isDark ? '#262629' : '#E5E7EB' },
               ]}
             >
-              <Text style={[styles.totalTitle, { color: colors.text }]}>
-                {kind === 'expense' ? 'Total of expense' : 'Total of income'}
-              </Text>
-              <Text
-                style={[
-                  styles.totalAmount,
-                  { color: kind === 'expense' ? colors.expense : colors.income },
-                ]}
-              >
-                {formatAmountWithPercent(totalForKind, items.length > 0 ? 100 : 0)}
-              </Text>
-            </View>
-
-            {items.length === 0 ? (
-              <View style={styles.emptyWrap}>
-                <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                  No {kind} transactions in this period.
-                </Text>
-              </View>
-            ) : (
-              items.map((item) => {
-                const isHighlighted = selectedSliceId === item.categoryId;
+              {(['expense', 'income'] as const).map((k) => {
+                const active = kind === k;
                 return (
                   <Pressable
-                    key={item.categoryId}
-                    onPress={() => handleOpenCategory(item.categoryId)}
-                    style={({ pressed }) => [
-                      styles.categoryRow,
-                      {
-                        borderBottomColor: colors.border,
-                        backgroundColor: isHighlighted
-                          ? isDark
-                            ? 'rgba(243,168,51,0.12)'
-                            : 'rgba(243,168,51,0.08)'
-                          : 'transparent',
-                        opacity: pressed ? 0.72 : 1,
-                      },
+                    key={k}
+                    onPress={() => {
+                      setKind(k);
+                      setSelectedSliceId(null);
+                    }}
+                    style={[
+                      styles.segmentBtn,
+                      active && { backgroundColor: colors.primary },
                     ]}
                   >
-                    <View style={styles.rowTop}>
-                      <View style={styles.categoryLeft}>
-                        <CategoryBadge
-                          icon={item.icon}
-                          color={item.color}
-                          size={38}
-                        />
-                        <View style={styles.categoryMeta}>
-                          <Text
-                            style={[styles.categoryName, { color: colors.text }]}
-                            numberOfLines={1}
-                          >
-                            {item.categoryName}
-                          </Text>
-                          <Text style={[styles.txCountText, { color: colors.textMuted }]}>
-                            {item.transactionCount}{' '}
-                            {item.transactionCount === 1 ? 'transaction' : 'transactions'}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.categoryRight}>
-                        <Text
-                          style={[
-                            styles.categoryAmount,
-                            { color: colors.text },
-                          ]}
-                        >
-                          {formatAmountWithPercent(item.amount, item.percentage)}
-                        </Text>
-                        <AppIcon
-                          name="chevron-right"
-                          size={16}
-                          color={colors.textMuted}
-                        />
-                      </View>
-                    </View>
-
-                    {/* Proportion Progress Bar */}
-                    <View
+                    <Text
                       style={[
-                        styles.barTrack,
-                        { backgroundColor: isDark ? '#2C2C2E' : '#F3F4F6' },
+                        styles.segmentLabel,
+                        {
+                          color: active
+                            ? '#FFFFFF'
+                            : isDark
+                              ? '#AEAEB2'
+                              : '#4B5563',
+                        },
                       ]}
                     >
-                      <View
-                        style={[
-                          styles.barFill,
-                          {
-                            backgroundColor: item.color,
-                            width: `${Math.max(2, Math.min(100, item.percentage))}%`,
-                          },
-                        ]}
-                      />
-                    </View>
+                      {k === 'expense'
+                        ? `Expense (${formatAmountPlain(summary.expense)})`
+                        : `Income (${formatAmountPlain(summary.income)})`}
+                    </Text>
                   </Pressable>
                 );
-              })
-            )}
+              })}
+            </View>
+
+            {/* Decomposition Card */}
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  borderWidth: isDark ? 0 : 1,
+                },
+              ]}
+            >
+              <View style={[styles.cardHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
+                  {range.monthLabel}'s {kind === 'expense' ? 'expense' : 'income'}
+                </Text>
+                {selectedSliceId ? (
+                  <Pressable
+                    onPress={() => setSelectedSliceId(null)}
+                    hitSlop={8}
+                  >
+                    <Text style={{ color: colors.primary, fontSize: 12.5, fontWeight: '600' }}>
+                      Reset selection
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {/* Interactive Donut Chart */}
+              <View style={styles.chartWrap}>
+                <DonutChart
+                  data={donutData}
+                  size={isDesktop ? 200 : 224}
+                  centerLabel={kind === 'expense' ? 'Expense' : 'Income'}
+                  maxLabelChars={11}
+                  selectedSliceId={selectedSliceId}
+                  onSlicePress={handleSlicePress}
+                  onCenterPress={() => {
+                    setKind((prev) => (prev === 'expense' ? 'income' : 'expense'));
+                    setSelectedSliceId(null);
+                  }}
+                />
+                {items.length > 0 ? (
+                  <Text style={[styles.chartHint, { color: colors.textMuted }]}>
+                    Tap a slice to highlight (tap again to drill in)
+                  </Text>
+                ) : null}
+              </View>
+
+              {/* Total Header Row */}
+              <View
+                style={[
+                  styles.totalRow,
+                  { borderBottomColor: colors.border },
+                ]}
+              >
+                <Text style={[styles.totalTitle, { color: colors.text }]}>
+                  {kind === 'expense' ? 'Total of expense' : 'Total of income'}
+                </Text>
+                <Text
+                  style={[
+                    styles.totalAmount,
+                    { color: kind === 'expense' ? colors.expense : colors.income },
+                  ]}
+                >
+                  {formatAmountWithPercent(totalForKind, items.length > 0 ? 100 : 0)}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Right Column on Desktop / Bottom on Mobile */}
+          <View style={isDesktop ? styles.desktopColRight : styles.mobileCol}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  borderWidth: isDark ? 0 : 1,
+                },
+              ]}
+            >
+              <View style={[styles.cardHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
+                  {kind === 'expense' ? 'Expense Breakdown' : 'Income Breakdown'} ({items.length} categories)
+                </Text>
+              </View>
+
+              <View style={styles.listSection}>
+                {items.length === 0 ? (
+                  <View style={styles.emptyWrap}>
+                    <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+                      No {kind} transactions in this period.
+                    </Text>
+                  </View>
+                ) : (
+                  items.map((item) => {
+                    const isHighlighted = selectedSliceId === item.categoryId;
+                    return (
+                      <Pressable
+                        key={item.categoryId}
+                        onPress={() => handleOpenCategory(item.categoryId)}
+                        style={({ pressed }) => [
+                          styles.categoryRow,
+                          {
+                            borderBottomColor: colors.border,
+                            backgroundColor: isHighlighted
+                              ? isDark
+                                ? 'rgba(243,168,51,0.12)'
+                                : 'rgba(243,168,51,0.08)'
+                              : 'transparent',
+                            opacity: pressed ? 0.72 : 1,
+                          },
+                        ]}
+                      >
+                        <View style={styles.rowTop}>
+                          <View style={styles.categoryLeft}>
+                            <CategoryBadge
+                              icon={item.icon}
+                              color={item.color}
+                              size={38}
+                            />
+                            <View style={styles.categoryMeta}>
+                              <Text
+                                style={[styles.categoryName, { color: colors.text }]}
+                                numberOfLines={1}
+                              >
+                                {item.categoryName}
+                              </Text>
+                              <Text style={[styles.txCountText, { color: colors.textMuted }]}>
+                                {item.transactionCount}{' '}
+                                {item.transactionCount === 1 ? 'transaction' : 'transactions'}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.categoryRight}>
+                            <Text
+                              style={[
+                                styles.categoryAmount,
+                                { color: colors.text },
+                              ]}
+                            >
+                              {formatAmountWithPercent(item.amount, item.percentage)}
+                            </Text>
+                            <AppIcon
+                              name="chevron-right"
+                              size={16}
+                              color={colors.textMuted}
+                            />
+                          </View>
+                        </View>
+
+                        {/* Proportion Progress Bar */}
+                        <View
+                          style={[
+                            styles.barTrack,
+                            { backgroundColor: isDark ? '#2C2C2E' : '#F3F4F6' },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.barFill,
+                              {
+                                backgroundColor: item.color,
+                                width: `${Math.max(2, Math.min(100, item.percentage))}%`,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+            </View>
           </View>
         </View>
       </ScrollView>
 
-      <FloatingAddButton
-        onPress={() => router.push(`/transaction/new?kind=${kind}`)}
-      />
+      {!isDesktop && (
+        <FloatingAddButton
+          onPress={() => router.push(`/transaction/new?kind=${kind}`)}
+        />
+      )}
     </View>
   );
 }
@@ -531,5 +563,31 @@ const styles = StyleSheet.create({
   barFill: {
     height: '100%',
     borderRadius: 3,
+  },
+  desktopContent: {
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  desktopLayout: {
+    flexDirection: 'row',
+    gap: 28,
+    alignItems: 'flex-start',
+  },
+  desktopColLeft: {
+    width: 440,
+    flexShrink: 0,
+    gap: 16,
+  },
+  desktopColRight: {
+    flex: 1,
+    minWidth: 0,
+    gap: 16,
+  },
+  mobileLayout: {
+    flexDirection: 'column',
+  },
+  mobileCol: {
+    width: '100%',
   },
 });

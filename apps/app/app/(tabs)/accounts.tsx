@@ -29,10 +29,12 @@ import { useVault } from '../../src/data/VaultContext';
 import { AmountText, Button, Card } from '../../src/ui/components';
 import { AppIcon, CategoryBadge } from '../../src/ui/icons';
 import { radius, spacing, useTheme } from '../../src/ui/theme';
+import { useResponsive } from '../../src/ui/useResponsive';
 
 export default function AccountsScreen() {
   const { store } = useVault();
   const { colors } = useTheme();
+  const { isDesktop } = useResponsive();
   const router = useRouter();
   const accounts = getAccountBalances(store);
   const netWorth = getNetWorth(store);
@@ -128,10 +130,17 @@ export default function AccountsScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-          Categories & Subcategories
-        </Text>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          isDesktop && styles.desktopContent,
+        ]}
+      >
+        <View style={isDesktop ? styles.desktopRow : styles.mobileCol}>
+          <View style={isDesktop ? styles.desktopCol : styles.mobileCol}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+              Categories & Subcategories
+            </Text>
         <Card>
           {categories.map((cat) => (
             <View
@@ -275,7 +284,9 @@ export default function AccountsScreen() {
             <Button label="Add Category" onPress={handleCreateCategory} />
           </View>
         </Card>
+      </View>
 
+      <View style={isDesktop ? styles.desktopCol : styles.mobileCol}>
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
           Your Accounts (Total Net Worth: {formatAmountPlain(netWorth)})
         </Text>
@@ -433,7 +444,9 @@ export default function AccountsScreen() {
             <Button label="Create Account" onPress={handleCreate} />
           </View>
         </Card>
-      </ScrollView>
+      </View>
+    </View>
+  </ScrollView>
     </View>
   );
 }
@@ -524,4 +537,23 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   empty: { textAlign: 'center', paddingVertical: spacing.md },
+  desktopContent: {
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  desktopRow: {
+    flexDirection: 'row',
+    gap: 28,
+    alignItems: 'flex-start',
+  },
+  desktopCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 12,
+  },
+  mobileCol: {
+    width: '100%',
+    gap: 12,
+  },
 });

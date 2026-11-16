@@ -21,10 +21,12 @@ import {
   TransactionDayCard,
 } from '../../src/ui/TransactionDayGroup';
 import { radius, spacing, useTheme } from '../../src/ui/theme';
+import { useResponsive } from '../../src/ui/useResponsive';
 
 export default function TransactionsScreen() {
   const { store } = useVault();
   const { colors, isDark } = useTheme();
+  const { isDesktop } = useResponsive();
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<TransactionKind | undefined>();
@@ -49,7 +51,13 @@ export default function TransactionsScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          isDesktop && styles.desktopContent,
+        ]}
+      >
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -123,7 +131,9 @@ export default function TransactionsScreen() {
         )}
       </ScrollView>
 
-      <FloatingAddButton onPress={() => router.push('/transaction/new')} />
+      {!isDesktop && (
+        <FloatingAddButton onPress={() => router.push('/transaction/new')} />
+      )}
     </View>
   );
 }
@@ -142,6 +152,14 @@ const styles = StyleSheet.create({
   topTitle: { fontSize: 18, fontWeight: '600' },
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 96 },
+  desktopContent: {
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 28,
+    paddingTop: 24,
+    paddingBottom: 40,
+  },
   searchInput: {
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,

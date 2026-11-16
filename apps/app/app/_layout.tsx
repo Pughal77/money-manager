@@ -5,10 +5,13 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet, View } from 'react-native';
 import { VaultProvider } from '../src/data/VaultContext';
 import { SyncTopBar } from '../src/ui/components';
+import { DesktopSidebar } from '../src/ui/DesktopSidebar';
 import { useTheme } from '../src/ui/theme';
+import { useResponsive } from '../src/ui/useResponsive';
 
 function ThemedAppShell() {
   const { colors, isDark } = useTheme();
+  const { isDesktop } = useResponsive();
 
   return (
     <SafeAreaView
@@ -16,36 +19,49 @@ function ThemedAppShell() {
       edges={['top', 'left', 'right']}
     >
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <View style={[styles.centeredColumn, { backgroundColor: colors.bg }]}>
-        <SyncTopBar />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.bg },
-          }}
-        >
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="transaction/new"
-            options={{
-              headerShown: false,
-              presentation: 'transparentModal',
-              animation: 'slide_from_bottom',
-            }}
-          />
-          <Stack.Screen
-            name="breakdown"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="category/[id]"
-            options={{
-              headerShown: false,
-            }}
-          />
-        </Stack>
+      <View
+        style={[
+          styles.centeredColumn,
+          {
+            backgroundColor: colors.bg,
+            maxWidth: isDesktop ? 1440 : 520,
+          },
+        ]}
+      >
+        {!isDesktop && <SyncTopBar />}
+        <View style={isDesktop ? styles.desktopShellRow : styles.mobileShellCol}>
+          {isDesktop && <DesktopSidebar />}
+          <View style={styles.stackContainer}>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.bg },
+              }}
+            >
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="transaction/new"
+                options={{
+                  headerShown: false,
+                  presentation: 'transparentModal',
+                  animation: 'slide_from_bottom',
+                }}
+              />
+              <Stack.Screen
+                name="breakdown"
+                options={{
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="category/[id]"
+                options={{
+                  headerShown: false,
+                }}
+              />
+            </Stack>
+          </View>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -70,5 +86,17 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 520,
     alignSelf: 'center',
+  },
+  desktopShellRow: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  mobileShellCol: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  stackContainer: {
+    flex: 1,
+    height: '100%',
   },
 });

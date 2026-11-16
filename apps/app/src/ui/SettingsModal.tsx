@@ -21,6 +21,7 @@ import { phoneLanServer } from '../server/lanServer';
 import { Button, Card } from './components';
 import { AppIcon } from './icons';
 import { radius, spacing, useTheme } from './theme';
+import { useResponsive } from './useResponsive';
 
 export function SettingsModal({
   visible,
@@ -31,6 +32,7 @@ export function SettingsModal({
 }) {
   const { store, role, webState, lanState } = useVault();
   const { colors, mode, setMode } = useTheme();
+  const { isDesktop } = useResponsive();
   const router = useRouter();
 
   const [phoneUrlInput, setPhoneUrlInput] = useState(webState.phoneUrl);
@@ -86,10 +88,17 @@ export function SettingsModal({
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.backdrop}>
+      <View style={[styles.backdrop, isDesktop && styles.backdropDesktop]}>
+        {isDesktop && (
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={onClose}
+          />
+        )}
         <View
           style={[
             styles.sheet,
+            isDesktop && styles.sheetDesktop,
             { backgroundColor: colors.bg, borderColor: colors.border },
           ]}
         >
@@ -378,6 +387,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
+  backdropDesktop: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
   sheet: {
     maxHeight: '90%',
     borderTopLeftRadius: 20,
@@ -386,6 +400,11 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 520,
     alignSelf: 'center',
+  },
+  sheetDesktop: {
+    maxWidth: 640,
+    borderRadius: 20,
+    borderWidth: 1,
   },
   header: {
     flexDirection: 'row',

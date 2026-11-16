@@ -30,6 +30,7 @@ import { Button, Card, ProgressBar } from '../../src/ui/components';
 import { DatePickerModal } from '../../src/ui/DatePickerModal';
 import { AppIcon } from '../../src/ui/icons';
 import { radius, spacing, useTheme } from '../../src/ui/theme';
+import { useResponsive } from '../../src/ui/useResponsive';
 
 const PERIOD_TABS: Array<{ key: BudgetPeriodType; label: string }> = [
   { key: 'weekly', label: 'Weekly' },
@@ -46,6 +47,7 @@ function formatEditableDecimal(cents: number): string {
 export default function BudgetsScreen() {
   const { store, selectedMonth } = useVault();
   const { colors } = useTheme();
+  const { isDesktop } = useResponsive();
   const router = useRouter();
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -218,9 +220,16 @@ export default function BudgetsScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Card>
-          <Text style={[styles.title, { color: colors.text }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          isDesktop && styles.desktopContent,
+        ]}
+      >
+        <View style={isDesktop ? styles.desktopRow : styles.mobileCol}>
+          <View style={isDesktop ? styles.desktopColLeft : styles.mobileCol}>
+            <Card>
+              <Text style={[styles.title, { color: colors.text }]}>
             Set Category Budget
           </Text>
 
@@ -690,7 +699,9 @@ export default function BudgetsScreen() {
             />
           </View>
         </Card>
+      </View>
 
+      <View style={isDesktop ? styles.desktopColRight : styles.mobileCol}>
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
           Budgets for {periodSummaryHeading}
         </Text>
@@ -756,7 +767,9 @@ export default function BudgetsScreen() {
             ))
           )}
         </Card>
-      </ScrollView>
+      </View>
+    </View>
+  </ScrollView>
 
       <DatePickerModal
         visible={calendarModalOpen}
@@ -786,6 +799,30 @@ const styles = StyleSheet.create({
   backBtn: { width: 36, alignItems: 'flex-start' },
   topTitle: { fontSize: 18, fontWeight: '600' },
   content: { padding: spacing.lg, paddingBottom: 48 },
+  desktopContent: {
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  desktopRow: {
+    flexDirection: 'row',
+    gap: 28,
+    alignItems: 'flex-start',
+  },
+  desktopColLeft: {
+    width: 440,
+    flexShrink: 0,
+    gap: 16,
+  },
+  desktopColRight: {
+    flex: 1,
+    minWidth: 0,
+    gap: 16,
+  },
+  mobileCol: {
+    width: '100%',
+    gap: 16,
+  },
   title: { fontSize: 16, fontWeight: '700' },
   label: {
     fontSize: 12,

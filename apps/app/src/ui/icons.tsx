@@ -35,6 +35,7 @@ export type IconName =
   | 'tab-home'
   | 'tab-calendar'
   | 'tab-statistic'
+  | 'pie-chart'
   | 'backspace'
   | 'sun'
   | 'moon'
@@ -546,6 +547,26 @@ export function AppIcon({
           <Rect x="4" y="12" width="4" height="8" rx="1" stroke={color} strokeWidth={strokeWidth} />
           <Rect x="10" y="5" width="4" height="15" rx="1" stroke={color} strokeWidth={strokeWidth} />
           <Rect x="16" y="9" width="4" height="11" rx="1" stroke={color} strokeWidth={strokeWidth} />
+        </Svg>
+      );
+
+    case 'pie-chart':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M21.21 15.89A10 10 0 1 1 8 2.83"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M22 12A10 10 0 0 0 12 2v10z"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </Svg>
       );
 

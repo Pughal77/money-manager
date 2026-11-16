@@ -9,6 +9,7 @@ import {
 import { useRouter } from 'expo-router';
 import {
   formatAmountPlain,
+  getAccountBalances,
   getCategoryBreakdown,
   getMonthDateRange,
   getMonthlySummary,
@@ -27,6 +28,7 @@ import { DonutChart } from '../../src/ui/DonutChart';
 import { AppIcon } from '../../src/ui/icons';
 import { PeriodHeader } from '../../src/ui/PeriodHeader';
 import { SettingsModal } from '../../src/ui/SettingsModal';
+import { useResponsive } from '../../src/ui/useResponsive';
 import {
   groupTransactionsByDay,
   TransactionDayCard,
@@ -43,6 +45,7 @@ export default function HomeScreen() {
     setSelectedDate,
   } = useVault();
   const { colors, isDark } = useTheme();
+  const { isDesktop } = useResponsive();
   const router = useRouter();
 
   const [cardKind, setCardKind] = useState<CategoryKind>('expense');
@@ -90,295 +93,372 @@ export default function HomeScreen() {
     }
   };
 
+  const displayedGroups = isDesktop ? dayGroups : visibleGroups;
+
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      {/* Top App Bar */}
-      <View
-        style={[
-          styles.topBar,
-          { borderBottomColor: colors.border },
-        ]}
-      >
-        <Pressable
-          onPress={() => setMenuOpen(true)}
-          hitSlop={10}
-          style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
-          accessibilityRole="button"
-          accessibilityLabel="Open menu and settings"
+      {/* Top App Bar (Mobile only, Desktop uses Sidebar) */}
+      {!isDesktop && (
+        <View
+          style={[
+            styles.topBar,
+            { borderBottomColor: colors.border },
+          ]}
         >
-          <AppIcon name="menu" size={23} color={colors.text} />
-        </Pressable>
-
-        <View style={styles.topBarRight}>
           <Pressable
-            onPress={() => router.push('/(tabs)/accounts')}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.accountsBtn,
-              {
-                backgroundColor: isDark ? '#212121' : '#F4F4F5',
-                borderColor: colors.border,
-                opacity: pressed ? 0.7 : 1,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Open accounts view"
-          >
-            <AppIcon name="banknotes" size={16} color={colors.primary} />
-            <Text style={[styles.accountsBtnText, { color: colors.text }]}>
-              Accounts
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={handleSyncPress}
+            onPress={() => setMenuOpen(true)}
             hitSlop={10}
             style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
             accessibilityRole="button"
-            accessibilityLabel="Sync or manage web server"
+            accessibilityLabel="Open menu and settings"
           >
-            <AppIcon name="sync" size={21} color={colors.text} />
+            <AppIcon name="menu" size={23} color={colors.text} />
           </Pressable>
+
+          <View style={styles.topBarRight}>
+            <Pressable
+              onPress={() => router.push('/(tabs)/accounts')}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.accountsBtn,
+                {
+                  backgroundColor: isDark ? '#212121' : '#F4F4F5',
+                  borderColor: colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Open accounts view"
+            >
+              <AppIcon name="banknotes" size={16} color={colors.primary} />
+              <Text style={[styles.accountsBtnText, { color: colors.text }]}>
+                Accounts
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleSyncPress}
+              hitSlop={10}
+              style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Sync or manage web server"
+            >
+              <AppIcon name="sync" size={21} color={colors.text} />
+            </Pressable>
+          </View>
         </View>
-      </View>
+      )}
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          isDesktop && styles.desktopContent,
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Month Period Selector */}
-        <PeriodHeader
-          monthLabel={range.monthLabel}
-          rangeLabel={range.rangeLabel}
-          onPrev={() => setSelectedMonth((m) => shiftYearMonth(m, -1))}
-          onNext={() => setSelectedMonth((m) => shiftYearMonth(m, 1))}
-        />
-
-        {/* Monthly Balance & Donut Card */}
-        <View
-          style={[
-            styles.balanceCard,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              borderWidth: isDark ? 0 : 1,
-            },
-          ]}
-        >
-          {/* Card Header — Tapping opens Dedicated Decomposition Page */}
-          <Pressable
-            onPress={() => handleOpenBreakdown(cardKind)}
-            style={({ pressed }) => [
-              styles.cardHeader,
-              {
-                borderBottomColor: colors.border,
-                opacity: pressed ? 0.72 : 1,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Open monthly decomposition view"
-          >
-            <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
-              {range.monthLabel}'s balance
-            </Text>
-
-            <View style={styles.breakdownLink}>
-              <Text style={[styles.breakdownLinkText, { color: colors.textMuted }]}>
-                Breakdown
-              </Text>
-              <AppIcon name="chevron-right" size={15} color={colors.textMuted} />
-            </View>
-          </Pressable>
-
-          {/* Card Body — Tapping the card element toggles between Expense and Income */}
-          <Pressable
-            onPress={toggleCardKind}
-            style={({ pressed }) => [
-              styles.balanceBody,
-              { opacity: pressed ? 0.88 : 1 },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Tap to toggle between Expense and Income chart"
-          >
-            <DonutChart
-              data={donutData}
-              size={128}
-              centerLabel={cardKind === 'expense' ? 'Expense' : 'Income'}
-              maxLabelChars={8}
-              onCenterPress={toggleCardKind}
-              onSlicePress={toggleCardKind}
+        <View style={isDesktop ? styles.desktopLayout : styles.mobileLayout}>
+          {/* Left Column on Desktop / Top Section on Mobile */}
+          <View style={isDesktop ? styles.desktopColLeft : styles.mobileCol}>
+            {/* Month Period Selector */}
+            <PeriodHeader
+              monthLabel={range.monthLabel}
+              rangeLabel={range.rangeLabel}
+              onPrev={() => setSelectedMonth((m) => shiftYearMonth(m, -1))}
+              onNext={() => setSelectedMonth((m) => shiftYearMonth(m, 1))}
             />
 
-            <View style={styles.balanceStats}>
-              <View
-                style={[
-                  styles.statRow,
-                  cardKind === 'income' && {
-                    backgroundColor: isDark
-                      ? 'rgba(46,184,114,0.1)'
-                      : 'rgba(22,163,74,0.08)',
-                    borderRadius: 6,
-                    paddingHorizontal: 6,
-                    marginHorizontal: -6,
+            {/* Monthly Balance & Donut Card */}
+            <View
+              style={[
+                styles.balanceCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  borderWidth: isDark ? 0 : 1,
+                },
+              ]}
+            >
+              {/* Card Header — Tapping opens Dedicated Decomposition Page */}
+              <Pressable
+                onPress={() => handleOpenBreakdown(cardKind)}
+                style={({ pressed }) => [
+                  styles.cardHeader,
+                  {
+                    borderBottomColor: colors.border,
+                    opacity: pressed ? 0.72 : 1,
                   },
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel="Open monthly decomposition view"
               >
-                <View style={styles.statLabelWrap}>
+                <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
+                  {range.monthLabel}'s balance
+                </Text>
+
+                <View style={styles.breakdownLink}>
+                  <Text style={[styles.breakdownLinkText, { color: colors.textMuted }]}>
+                    Breakdown
+                  </Text>
+                  <AppIcon name="chevron-right" size={15} color={colors.textMuted} />
+                </View>
+              </Pressable>
+
+              {/* Card Body — Tapping the card element toggles between Expense and Income */}
+              <Pressable
+                onPress={toggleCardKind}
+                style={({ pressed }) => [
+                  styles.balanceBody,
+                  { opacity: pressed ? 0.88 : 1 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Tap to toggle between Expense and Income chart"
+              >
+                <DonutChart
+                  data={donutData}
+                  size={128}
+                  centerLabel={cardKind === 'expense' ? 'Expense' : 'Income'}
+                  maxLabelChars={8}
+                  onCenterPress={toggleCardKind}
+                  onSlicePress={toggleCardKind}
+                />
+
+                <View style={styles.balanceStats}>
                   <View
                     style={[
-                      styles.activeDot,
-                      {
-                        backgroundColor:
-                          cardKind === 'income' ? colors.income : 'transparent',
-                      },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.statLabel,
-                      {
-                        color:
-                          cardKind === 'income' ? colors.text : colors.textMuted,
-                        fontWeight: cardKind === 'income' ? '600' : '500',
+                      styles.statRow,
+                      cardKind === 'income' && {
+                        backgroundColor: isDark
+                          ? 'rgba(46,184,114,0.1)'
+                          : 'rgba(22,163,74,0.08)',
+                        borderRadius: 6,
+                        paddingHorizontal: 6,
+                        marginHorizontal: -6,
                       },
                     ]}
                   >
-                    Income
-                  </Text>
-                </View>
-                <Text style={[styles.statAmount, { color: colors.income }]}>
-                  {formatAmountPlain(summary.income)}
-                </Text>
-              </View>
+                    <View style={styles.statLabelWrap}>
+                      <View
+                        style={[
+                          styles.activeDot,
+                          {
+                            backgroundColor:
+                              cardKind === 'income' ? colors.income : 'transparent',
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.statLabel,
+                          {
+                            color:
+                              cardKind === 'income' ? colors.text : colors.textMuted,
+                            fontWeight: cardKind === 'income' ? '600' : '500',
+                          },
+                        ]}
+                      >
+                        Income
+                      </Text>
+                    </View>
+                    <Text style={[styles.statAmount, { color: colors.income }]}>
+                      {formatAmountPlain(summary.income)}
+                    </Text>
+                  </View>
 
-              <View
-                style={[
-                  styles.statRow,
-                  cardKind === 'expense' && {
-                    backgroundColor: isDark
-                      ? 'rgba(232,92,92,0.1)'
-                      : 'rgba(220,38,38,0.08)',
-                    borderRadius: 6,
-                    paddingHorizontal: 6,
-                    marginHorizontal: -6,
-                  },
-                ]}
-              >
-                <View style={styles.statLabelWrap}>
                   <View
                     style={[
-                      styles.activeDot,
-                      {
-                        backgroundColor:
-                          cardKind === 'expense' ? colors.expense : 'transparent',
-                      },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.statLabel,
-                      {
-                        color:
-                          cardKind === 'expense' ? colors.text : colors.textMuted,
-                        fontWeight: cardKind === 'expense' ? '600' : '500',
+                      styles.statRow,
+                      cardKind === 'expense' && {
+                        backgroundColor: isDark
+                          ? 'rgba(232,92,92,0.1)'
+                          : 'rgba(220,38,38,0.08)',
+                        borderRadius: 6,
+                        paddingHorizontal: 6,
+                        marginHorizontal: -6,
                       },
                     ]}
                   >
-                    Expense
-                  </Text>
+                    <View style={styles.statLabelWrap}>
+                      <View
+                        style={[
+                          styles.activeDot,
+                          {
+                            backgroundColor:
+                              cardKind === 'expense' ? colors.expense : 'transparent',
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.statLabel,
+                          {
+                            color:
+                              cardKind === 'expense' ? colors.text : colors.textMuted,
+                            fontWeight: cardKind === 'expense' ? '600' : '500',
+                          },
+                        ]}
+                      >
+                        Expense
+                      </Text>
+                    </View>
+                    <Text style={[styles.statAmount, { color: colors.expense }]}>
+                      {formatAmountPlain(summary.expense)}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.statDivider,
+                      { backgroundColor: colors.border },
+                    ]}
+                  />
+
+                  <View style={styles.balanceTotalRow}>
+                    <Text style={[styles.balanceLabel, { color: colors.textMuted }]}>
+                      Balance
+                    </Text>
+                    <Text
+                      style={[styles.balanceValue, { color: colors.text }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                    >
+                      {formatAmountPlain(summary.net)}
+                    </Text>
+                  </View>
                 </View>
-                <Text style={[styles.statAmount, { color: colors.expense }]}>
-                  {formatAmountPlain(summary.expense)}
-                </Text>
-              </View>
-
-              <View
-                style={[
-                  styles.statDivider,
-                  { backgroundColor: colors.border },
-                ]}
-              />
-
-              <View style={styles.balanceTotalRow}>
-                <Text style={[styles.balanceLabel, { color: colors.textMuted }]}>
-                  Balance
-                </Text>
-                <Text
-                  style={[styles.balanceValue, { color: colors.text }]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                >
-                  {formatAmountPlain(summary.net)}
-                </Text>
-              </View>
+              </Pressable>
             </View>
-          </Pressable>
-        </View>
 
-        {/* Monthly Transactions Section */}
-        <Text style={[styles.sectionHeading, { color: colors.text }]}>
-          {range.monthLabel} transactions
-        </Text>
-
-        {visibleGroups.length === 0 ? (
-          <View
-            style={[
-              styles.emptyCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                borderWidth: isDark ? 0 : 1,
-              },
-            ]}
-          >
-            <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-              There is no history.
-            </Text>
+            {/* Quick Accounts Card on Desktop */}
+            {isDesktop && (
+              <View
+                style={[
+                  styles.accountsCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderWidth: isDark ? 0 : 1,
+                  },
+                ]}
+              >
+                <View style={styles.accountsCardHeader}>
+                  <Text style={[styles.accountsCardTitle, { color: colors.text }]}>
+                    Accounts
+                  </Text>
+                  <Pressable
+                    onPress={() => router.push('/(tabs)/accounts')}
+                    hitSlop={8}
+                  >
+                    <Text style={[styles.accountsCardLink, { color: colors.link }]}>
+                      Manage
+                    </Text>
+                  </Pressable>
+                </View>
+                {getAccountBalances(store).map((acc) => (
+                  <View
+                    key={acc.id}
+                    style={[styles.accountRow, { borderTopColor: colors.border }]}
+                  >
+                    <View style={styles.accountInfo}>
+                      <View
+                        style={[
+                          styles.accountDot,
+                          { backgroundColor: colors.primary },
+                        ]}
+                      />
+                      <Text
+                        style={[styles.accountName, { color: colors.text }]}
+                        numberOfLines={1}
+                      >
+                        {acc.name}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.accountBalance,
+                        {
+                          color:
+                            acc.balance >= 0 ? colors.income : colors.expense,
+                        },
+                      ]}
+                    >
+                      {formatAmountPlain(acc.balance)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
-        ) : (
-          visibleGroups.map((group) => (
-            <TransactionDayCard
-              key={group.date}
-              group={group}
-              categoryMap={categoryMap}
-              accountMap={accountMap}
-              onPressDayHeader={(dateStr) => {
-                setSelectedDate(dateStr);
-                setSelectedMonth(dateStr.slice(0, 7));
-                router.push('/(tabs)/calendar');
-              }}
-              onSelectTransaction={(tx) =>
-                router.push(`/transaction/new?id=${encodeURIComponent(tx.id)}`)
-              }
-            />
-          ))
-        )}
 
-        {dayGroups.length > 5 ? (
-          <Pressable
-            onPress={() => setShowAllDays((v) => !v)}
-            style={styles.viewAllBtn}
-          >
-            <Text style={[styles.viewAllText, { color: colors.link }]}>
-              {showAllDays ? 'Show less' : 'View all'}
+          {/* Right Column on Desktop / Bottom Section on Mobile */}
+          <View style={isDesktop ? styles.desktopColRight : styles.mobileCol}>
+            {/* Monthly Transactions Section */}
+            <Text style={[styles.sectionHeading, { color: colors.text }]}>
+              {range.monthLabel} transactions ({txs.length})
             </Text>
-          </Pressable>
-        ) : dayGroups.length > 0 ? (
-          <Pressable
-            onPress={() => router.push('/(tabs)/transactions')}
-            style={styles.viewAllBtn}
-          >
-            <Text style={[styles.viewAllText, { color: colors.link }]}>
-              View all
-            </Text>
-          </Pressable>
-        ) : null}
+
+            {displayedGroups.length === 0 ? (
+              <View
+                style={[
+                  styles.emptyCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderWidth: isDark ? 0 : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+                  There is no history.
+                </Text>
+              </View>
+            ) : (
+              displayedGroups.map((group) => (
+                <TransactionDayCard
+                  key={group.date}
+                  group={group}
+                  categoryMap={categoryMap}
+                  accountMap={accountMap}
+                  onPressDayHeader={(dateStr) => {
+                    setSelectedDate(dateStr);
+                    setSelectedMonth(dateStr.slice(0, 7));
+                    router.push('/(tabs)/calendar');
+                  }}
+                  onSelectTransaction={(tx) =>
+                    router.push(`/transaction/new?id=${encodeURIComponent(tx.id)}`)
+                  }
+                />
+              ))
+            )}
+
+            {!isDesktop && dayGroups.length > 5 ? (
+              <Pressable
+                onPress={() => setShowAllDays((v) => !v)}
+                style={styles.viewAllBtn}
+              >
+                <Text style={[styles.viewAllText, { color: colors.link }]}>
+                  {showAllDays ? 'Show less' : 'View all'}
+                </Text>
+              </Pressable>
+            ) : !isDesktop && dayGroups.length > 0 ? (
+              <Pressable
+                onPress={() => router.push('/(tabs)/transactions')}
+                style={styles.viewAllBtn}
+              >
+                <Text style={[styles.viewAllText, { color: colors.link }]}>
+                  View all
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
       </ScrollView>
 
-      <FloatingAddButton
-        onPress={() => router.push('/transaction/new')}
-      />
+      {!isDesktop && (
+        <FloatingAddButton
+          onPress={() => router.push('/transaction/new')}
+        />
+      )}
 
       <SettingsModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
     </View>
@@ -535,5 +615,81 @@ const styles = StyleSheet.create({
   viewAllText: {
     fontSize: 15,
     fontWeight: '500',
+  },
+  desktopContent: {
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  desktopLayout: {
+    flexDirection: 'row',
+    gap: 28,
+    alignItems: 'flex-start',
+  },
+  desktopColLeft: {
+    width: 440,
+    flexShrink: 0,
+    gap: 16,
+  },
+  desktopColRight: {
+    flex: 1,
+    minWidth: 0,
+    gap: 12,
+  },
+  mobileLayout: {
+    flexDirection: 'column',
+  },
+  mobileCol: {
+    width: '100%',
+  },
+  accountsCard: {
+    borderRadius: radius.lg,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginTop: 4,
+  },
+  accountsCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  accountsCardTitle: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  accountsCardLink: {
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+  accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 9,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  accountInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  accountDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  accountName: {
+    fontSize: 13.5,
+    fontWeight: '500',
+    flex: 1,
+  },
+  accountBalance: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    marginLeft: 8,
   },
 });

@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -32,14 +33,27 @@ import { useVault } from '../../src/data/VaultContext';
 import { DatePickerModal } from '../../src/ui/DatePickerModal';
 import { AppIcon, CategoryBadge } from '../../src/ui/icons';
 import { radius, useTheme } from '../../src/ui/theme';
+import { useResponsive } from '../../src/ui/useResponsive';
 
 type ActivePane = 'none' | 'calculator' | 'category' | 'subcategory' | 'account';
 
 export default function TransactionSheetScreen() {
   const { store } = useVault();
   const { colors, isDark } = useTheme();
+  const { isDesktop } = useResponsive();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        router.back();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   const params = useLocalSearchParams<{
     id?: string;
     date?: string;
@@ -234,15 +248,20 @@ export default function TransactionSheetScreen() {
   const accountDisplayName = selectedAccount?.name ?? 'Main Account';
 
   return (
-    <View style={styles.backdrop}>
-      <Pressable style={styles.dismissTop} onPress={() => router.back()} />
+    <View style={[styles.backdrop, isDesktop && styles.backdropDesktop]}>
+      <Pressable
+        style={isDesktop ? StyleSheet.absoluteFill : styles.dismissTop}
+        onPress={() => router.back()}
+      />
 
       <View
         style={[
           styles.sheet,
+          isDesktop && styles.sheetDesktop,
           {
             backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
             borderColor: colors.border,
+            borderWidth: isDesktop ? 1 : 0,
           },
         ]}
       >
@@ -898,6 +917,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'flex-end',
   },
+  backdropDesktop: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
   dismissTop: {
     height: 32,
   },
@@ -906,6 +930,18 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     overflow: 'hidden',
+  },
+  sheetDesktop: {
+    flex: 0,
+    width: '100%',
+    maxWidth: 580,
+    maxHeight: '92%',
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 10,
   },
   handleBar: {
     flexDirection: 'row',

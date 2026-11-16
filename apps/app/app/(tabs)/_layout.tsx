@@ -1,11 +1,15 @@
 import React from 'react';
+import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { DesktopSidebar } from '../../src/ui/DesktopSidebar';
 import { AppIcon } from '../../src/ui/icons';
 import { useTheme } from '../../src/ui/theme';
+import { useResponsive } from '../../src/ui/useResponsive';
 
 export default function TabsLayout() {
   const { colors, isDark } = useTheme();
+  const { isDesktop } = useResponsive();
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(8, insets.bottom);
 
@@ -13,13 +17,15 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
-          borderTopColor: colors.border,
-          height: 58 + insets.bottom,
-          paddingTop: 6,
-          paddingBottom: bottomInset,
-        },
+        tabBarStyle: isDesktop
+          ? { display: 'none' }
+          : {
+              backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
+              borderTopColor: colors.border,
+              height: 58 + insets.bottom,
+              paddingTop: 6,
+              paddingBottom: bottomInset,
+            },
         tabBarActiveTintColor: colors.text,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: {

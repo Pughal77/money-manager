@@ -24,10 +24,12 @@ import { DonutChart } from '../../src/ui/DonutChart';
 import { AppIcon, CategoryBadge } from '../../src/ui/icons';
 import { PeriodHeader } from '../../src/ui/PeriodHeader';
 import { radius, useTheme } from '../../src/ui/theme';
+import { useResponsive } from '../../src/ui/useResponsive';
 
 export default function StatisticScreen() {
   const { store, selectedMonth, setSelectedMonth } = useVault();
   const { colors, isDark } = useTheme();
+  const { isDesktop } = useResponsive();
   const router = useRouter();
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -126,11 +128,16 @@ export default function StatisticScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          isDesktop && styles.desktopContent,
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Period Header */}
-        <PeriodHeader
+        <View style={isDesktop ? styles.desktopLayout : styles.mobileLayout}>
+          <View style={isDesktop ? styles.desktopColLeft : styles.mobileCol}>
+            {/* Period Header */}
+            <PeriodHeader
           monthLabel={range.monthLabel}
           rangeLabel={range.rangeLabel}
           onPrev={handlePrev}
@@ -246,7 +253,20 @@ export default function StatisticScreen() {
               onSlicePress={(categoryId) => handleOpenCategory(categoryId)}
             />
           </View>
+        </View>
+      </View>
 
+      <View style={isDesktop ? styles.desktopColRight : styles.mobileCol}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderWidth: isDark ? 0 : 1,
+            },
+          ]}
+        >
           {/* Total of Income Section */}
           <View style={styles.reportSection}>
             <Pressable
@@ -347,7 +367,9 @@ export default function StatisticScreen() {
             ))}
           </View>
         </View>
-      </ScrollView>
+      </View>
+    </View>
+  </ScrollView>
     </View>
   );
 }
@@ -508,5 +530,31 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     fontWeight: '500',
     fontVariant: ['tabular-nums'],
+  },
+  desktopContent: {
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  desktopLayout: {
+    flexDirection: 'row',
+    gap: 28,
+    alignItems: 'flex-start',
+  },
+  desktopColLeft: {
+    width: 440,
+    flexShrink: 0,
+    gap: 16,
+  },
+  desktopColRight: {
+    flex: 1,
+    minWidth: 0,
+    gap: 16,
+  },
+  mobileLayout: {
+    flexDirection: 'column',
+  },
+  mobileCol: {
+    width: '100%',
   },
 });
