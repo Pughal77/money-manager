@@ -52,31 +52,39 @@ export function PeriodHeader({
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 52,
     paddingVertical: 10,
     paddingHorizontal: 4,
   },
   left: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     gap: 10,
   },
   monthText: {
     fontSize: 28,
+    lineHeight: 34,
     fontWeight: '700',
     letterSpacing: -0.4,
   },
   rangeText: {
     fontSize: 14,
+    lineHeight: 20,
+    marginTop: 5,
     fontWeight: '500',
   },
   arrows: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 18,
+    justifyContent: 'center',
+    gap: 12,
   },
   arrowBtn: {
-    padding: 6,
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

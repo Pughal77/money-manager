@@ -293,33 +293,34 @@ export default function BudgetsScreen() {
               </Text>
             </Pressable>
 
-            <View style={styles.stepperRight}>
-              {!isCurrentPeriod ? (
-                <Pressable
-                  onPress={handleResetToCurrent}
-                  style={[
-                    styles.currentPill,
-                    { backgroundColor: colors.surface, borderColor: colors.primary },
-                  ]}
-                >
-                  <Text style={[styles.currentPillText, { color: colors.primary }]}>
-                    Current
-                  </Text>
-                </Pressable>
-              ) : null}
-              <Pressable
-                onPress={() => handleStepPeriod(1)}
-                hitSlop={10}
-                style={styles.stepperArrow}
-                accessibilityRole="button"
-                accessibilityLabel="Next period"
-              >
-                <AppIcon name="chevron-right" size={18} color={colors.text} />
-              </Pressable>
-            </View>
+            <Pressable
+              onPress={() => handleStepPeriod(1)}
+              hitSlop={10}
+              style={styles.stepperArrow}
+              accessibilityRole="button"
+              accessibilityLabel="Next period"
+            >
+              <AppIcon name="chevron-right" size={18} color={colors.text} />
+            </Pressable>
           </View>
 
           <View style={styles.pickerToggleRow}>
+            {!isCurrentPeriod ? (
+              <Pressable
+                onPress={handleResetToCurrent}
+                hitSlop={8}
+                style={[
+                  styles.currentPill,
+                  { backgroundColor: colors.surface, borderColor: colors.primary },
+                ]}
+              >
+                <Text style={[styles.currentPillText, { color: colors.primary }]}>
+                  Reset to current
+                </Text>
+              </Pressable>
+            ) : (
+              <View />
+            )}
             <Pressable
               onPress={() => setPickerExpanded((prev) => !prev)}
               hitSlop={8}
@@ -819,7 +820,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   stepperArrow: {
-    padding: 6,
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stepperCenter: {
     flex: 1,
@@ -834,11 +838,6 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     marginTop: 2,
   },
-  stepperRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
   currentPill: {
     borderWidth: 1,
     borderRadius: radius.pill,
@@ -850,7 +849,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pickerToggleRow: {
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 24,
     marginTop: 6,
   },
   pickerToggleText: {
