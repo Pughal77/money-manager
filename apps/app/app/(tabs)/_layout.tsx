@@ -1,10 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../../src/ui/icons';
 import { useTheme } from '../../src/ui/theme';
 
 export default function TabsLayout() {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(8, insets.bottom);
 
   return (
     <Tabs
@@ -13,9 +16,9 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
           borderTopColor: colors.border,
-          height: 62,
+          height: 58 + insets.bottom,
           paddingTop: 6,
-          paddingBottom: 8,
+          paddingBottom: bottomInset,
         },
         tabBarActiveTintColor: colors.text,
         tabBarInactiveTintColor: colors.textMuted,

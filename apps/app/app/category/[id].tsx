@@ -149,8 +149,7 @@ export default function CategoryDrillDownScreen() {
               data={donutData}
               size={236}
               centerLabel={category.name}
-              centerSubLabel={formatAmountPlain(categoryTotal)}
-              maxLabelChars={13}
+              maxLabelChars={11}
               onSlicePress={(subName) => setSelectedSub(subName)}
               onCenterPress={() => setShowAllCategoryTxs(true)}
             />
@@ -167,7 +166,10 @@ export default function CategoryDrillDownScreen() {
               },
             ]}
           >
-            <Text style={[styles.totalHeaderTitle, { color: colors.text }]}>
+            <Text
+              style={[styles.totalHeaderTitle, { color: colors.text }]}
+              numberOfLines={1}
+            >
               Total of {category.name}
             </Text>
             <View style={styles.rowRight}>
@@ -191,7 +193,10 @@ export default function CategoryDrillDownScreen() {
                 },
               ]}
             >
-              <Text style={[styles.subName, { color: colors.textSecondary }]}>
+              <Text
+                style={[styles.subName, { color: colors.textSecondary }]}
+                numberOfLines={1}
+              >
                 {item.subcategory}
               </Text>
               <View style={styles.rowRight}>
@@ -380,7 +385,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingTop: 6,
-    paddingBottom: 96,
+    paddingBottom: 120,
   },
   donutWrap: {
     alignItems: 'center',
@@ -391,11 +396,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 10,
     paddingVertical: 14,
     paddingHorizontal: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   totalHeaderTitle: {
+    flex: 1,
+    flexShrink: 1,
     fontSize: 18,
     fontWeight: '600',
   },
@@ -407,17 +415,21 @@ const styles = StyleSheet.create({
   rowRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
     gap: 6,
   },
   subRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 10,
     paddingVertical: 14,
     paddingHorizontal: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   subName: {
+    flex: 1,
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: '500',
   },

@@ -138,10 +138,10 @@ export default function AccountsScreen() {
               key={cat.id}
               style={[styles.accountBlock, { borderBottomColor: colors.border }]}
             >
-              <View style={styles.row}>
+              <View style={styles.itemTopRow}>
                 <View style={styles.catRowLeft}>
-                  <CategoryBadge icon={cat.icon} color={cat.color} size={32} />
-                  <View style={{ flex: 1 }}>
+                  <CategoryBadge icon={cat.icon} color={cat.color} size={34} />
+                  <View style={styles.itemMeta}>
                     <Text style={[styles.name, { color: colors.text }]}>
                       {cat.name}{' '}
                       <Text style={{ color: colors.textMuted, fontSize: 12 }}>
@@ -150,39 +150,40 @@ export default function AccountsScreen() {
                     </Text>
                     <Text
                       style={[styles.sub, { color: colors.textMuted }]}
-                      numberOfLines={1}
+                      numberOfLines={2}
                     >
                       {cat.subcategories.join(', ')}
                     </Text>
                   </View>
                 </View>
-                <View style={styles.rightActions}>
-                  <Pressable
-                    onPress={() => {
-                      setEditingCatId(cat.id);
-                      setEditCatSubs(cat.subcategories.join(', '));
-                    }}
-                    style={[
-                      styles.actionBtn,
-                      { backgroundColor: colors.surfaceElevated },
-                    ]}
-                  >
-                    <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>
-                      Subcategories
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => deleteCategory(store, cat.id)}
-                    style={[
-                      styles.actionBtn,
-                      { backgroundColor: colors.surfaceElevated },
-                    ]}
-                  >
-                    <Text style={{ color: colors.expense, fontSize: 12, fontWeight: '600' }}>
-                      Delete
-                    </Text>
-                  </Pressable>
-                </View>
+              </View>
+
+              <View style={styles.itemActionsRow}>
+                <Pressable
+                  onPress={() => {
+                    setEditingCatId(cat.id);
+                    setEditCatSubs(cat.subcategories.join(', '));
+                  }}
+                  style={[
+                    styles.actionBtn,
+                    { backgroundColor: colors.surfaceElevated },
+                  ]}
+                >
+                  <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>
+                    Subcategories
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => deleteCategory(store, cat.id)}
+                  style={[
+                    styles.actionBtn,
+                    { backgroundColor: colors.surfaceElevated },
+                  ]}
+                >
+                  <Text style={{ color: colors.expense, fontSize: 12, fontWeight: '600' }}>
+                    Delete
+                  </Text>
+                </Pressable>
               </View>
 
               {editingCatId === cat.id ? (
@@ -296,48 +297,53 @@ export default function AccountsScreen() {
                 key={acc.id}
                 style={[styles.accountBlock, { borderBottomColor: colors.border }]}
               >
-                <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
+                <View style={styles.itemTopRow}>
+                  <View style={styles.itemMeta}>
                     <Text style={[styles.name, { color: colors.text }]}>
                       {acc.name}
                     </Text>
                     <Text style={[styles.sub, { color: colors.textMuted }]}>
                       {acc.type.toUpperCase()} · Opening:{' '}
-                      {formatAmountPlain(acc.openingBalance)} ·{' '}
+                      {formatAmountPlain(acc.openingBalance)}
+                    </Text>
+                    <Text style={[styles.sub, { color: colors.textMuted }]}>
                       <Text style={{ color: colors.income }}>
-                        +{formatAmountPlain(accIncome)}
-                      </Text>{' '}
-                      /{' '}
+                        Income +{formatAmountPlain(accIncome)}
+                      </Text>
+                      {'  ·  '}
                       <Text style={{ color: colors.expense }}>
-                        -{formatAmountPlain(accExpense)}
+                        Expense -{formatAmountPlain(accExpense)}
                       </Text>
                     </Text>
                   </View>
-                  <View style={styles.rightActions}>
-                    <AmountText cents={acc.balance} size={15} />
-                    <Pressable
-                      onPress={() => startEditing(acc)}
-                      style={[
-                        styles.actionBtn,
-                        { backgroundColor: colors.surfaceElevated },
-                      ]}
-                    >
-                      <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>
-                        Edit
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => deleteAccount(store, acc.id)}
-                      style={[
-                        styles.actionBtn,
-                        { backgroundColor: colors.surfaceElevated },
-                      ]}
-                    >
-                      <Text style={{ color: colors.expense, fontSize: 12, fontWeight: '600' }}>
-                        Delete
-                      </Text>
-                    </Pressable>
+                  <View style={styles.balanceCol}>
+                    <AmountText cents={acc.balance} size={16} />
                   </View>
+                </View>
+
+                <View style={styles.itemActionsRow}>
+                  <Pressable
+                    onPress={() => startEditing(acc)}
+                    style={[
+                      styles.actionBtn,
+                      { backgroundColor: colors.surfaceElevated },
+                    ]}
+                  >
+                    <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>
+                      Edit
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => deleteAccount(store, acc.id)}
+                    style={[
+                      styles.actionBtn,
+                      { backgroundColor: colors.surfaceElevated },
+                    ]}
+                  >
+                    <Text style={{ color: colors.expense, fontSize: 12, fontWeight: '600' }}>
+                      Delete
+                    </Text>
+                  </Pressable>
                 </View>
 
                 {editingId === acc.id && (
@@ -454,28 +460,38 @@ const styles = StyleSheet.create({
   },
   accountBlock: {
     borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 12,
   },
-  row: {
+  itemTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    gap: 8,
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  itemMeta: {
+    flex: 1,
+    flexShrink: 1,
+  },
+  balanceCol: {
+    flexShrink: 0,
+    alignItems: 'flex-end',
   },
   catRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     flex: 1,
   },
-  rightActions: {
+  itemActionsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 8,
   },
   actionBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: radius.sm,
   },
   editBox: {

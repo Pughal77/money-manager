@@ -308,7 +308,7 @@ describe('@mm/core', () => {
     expect(singleDonut.slices[0].percentage).toBe(100);
     expect(singleDonut.slices[0].pathData).toContain('A 95 95');
 
-    // Multi-slice case (Food, Online shopping, Transportation)
+    // Multi-slice case (Food, Online shopping, Transportation + tiny 8% slice hides label < 10%)
     const multiDonut = computeDonutSlices([
       { id: 'cat-food', label: 'Food', value: 21125, color: '#F29B9B' },
       { id: 'cat-online', label: 'Online shopping', value: 14646, color: '#D29BF2' },
@@ -318,6 +318,14 @@ describe('@mm/core', () => {
     expect(multiDonut.slices).toHaveLength(3);
     expect(multiDonut.slices[0].startAngleDeg).toBe(0);
     expect(Math.round(multiDonut.slices[2].endAngleDeg)).toBe(360);
+    expect(multiDonut.slices.every((s) => s.showLabel)).toBe(true);
+
+    const smallSliceDonut = computeDonutSlices([
+      { id: 'a', label: 'Main', value: 92, color: '#F29B9B' },
+      { id: 'b', label: 'Tiny', value: 8, color: '#D29BF2' },
+    ]);
+    expect(smallSliceDonut.slices[0].showLabel).toBe(true);
+    expect(smallSliceDonut.slices[1].showLabel).toBe(false);
 
     // Date and period formatting
     const novRange = getMonthDateRange('2026-11');

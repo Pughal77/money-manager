@@ -110,7 +110,7 @@ export function computeDonutSlices(
       pathData: describeDonutArc(cx, cy, outerRadius, innerRadius, startAngleDeg, endAngleDeg),
       labelX: labelPos.x,
       labelY: labelPos.y,
-      showLabel: percentage >= 7,
+      showLabel: percentage >= 10,
     };
   });
 

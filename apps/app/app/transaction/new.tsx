@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addAccount,
   addTransaction,
@@ -37,6 +38,7 @@ type ActivePane = 'none' | 'calculator' | 'category' | 'subcategory' | 'account'
 export default function TransactionSheetScreen() {
   const { store } = useVault();
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{
     id?: string;
@@ -230,8 +232,6 @@ export default function TransactionSheetScreen() {
 
   const accountRolePrefix = kind === 'income' ? 'Deposit to' : 'Pay from';
   const accountDisplayName = selectedAccount?.name ?? 'Main Account';
-  const accountBalance =
-    accountsWithBalances.find((a) => a.id === accountId)?.balance ?? 0;
 
   return (
     <View style={styles.backdrop}>
@@ -345,79 +345,85 @@ export default function TransactionSheetScreen() {
           {selectedCategory && selectedCategory.subcategories.length > 1 ? (
             <Pressable
               onPress={() => setActivePane('subcategory')}
-              style={[
-                styles.subcatTriggerPill,
-                {
-                  backgroundColor: isDark ? '#2C2C2E' : '#F3F4F6',
-                },
-              ]}
+              hitSlop={10}
+              style={({ pressed }) => ({
+                paddingLeft: 8,
+                opacity: pressed ? 0.65 : 1,
+              })}
+              accessibilityRole="button"
+              accessibilityLabel="Choose subcategory"
             >
-              <Text
-                style={[
-                  styles.subcatTriggerText,
-                  { color: colors.primary },
-                ]}
-              >
-                Subcategory
-              </Text>
+              <AppIcon
+                name="chevron-right"
+                size={16}
+                color={colors.textMuted}
+              />
             </Pressable>
           ) : null}
         </Pressable>
 
-        {/* Row 2: Account (Explicitly links Income / Expense to an Account) */}
-        <Pressable
-          onPress={() =>
-            setActivePane((p) => (p === 'account' ? 'category' : 'account'))
-          }
-          style={[styles.fieldRow, { borderBottomColor: colors.border }]}
-        >
-          <View style={styles.fieldIconBox}>
-            <AppIcon
-              name="banknotes"
-              size={20}
-              color={kind === 'income' ? colors.income : colors.primary}
-            />
-          </View>
-          <View style={styles.accountRowCenter}>
-            <Text style={[styles.accountRoleText, { color: colors.textMuted }]}>
-              {accountRolePrefix}:
-            </Text>
+        {/* Row 2: Compact 2-Column Split Row (Date | Account) */}
+        <View style={[styles.splitFieldRow, { borderBottomColor: colors.border }]}>
+          <Pressable
+            onPress={() => setDatePickerOpen(true)}
+            style={({ pressed }) => [
+              styles.splitHalfLeft,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <View style={styles.fieldIconBox}>
+              <AppIcon name="calendar" size={19} color={colors.textMuted} />
+            </View>
             <Text
-              style={[styles.accountNameText, { color: colors.text }]}
+              style={[styles.fieldTextSecondary, { color: colors.textSecondary }]}
               numberOfLines={1}
             >
-              {accountDisplayName}
+              {formatDisplayDate(date)}
             </Text>
-          </View>
-          <View style={styles.accountRowRight}>
-            <Text
-              style={[
-                styles.accountBalanceHint,
-                { color: colors.textMuted },
-              ]}
-            >
-              Bal: {formatAmountPlain(accountBalance)}
-            </Text>
+          </Pressable>
+
+          <View
+            style={[
+              styles.splitDivider,
+              { backgroundColor: colors.border },
+            ]}
+          />
+
+          <Pressable
+            onPress={() =>
+              setActivePane((p) => (p === 'account' ? 'category' : 'account'))
+            }
+            style={({ pressed }) => [
+              styles.splitHalfRight,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
             <AppIcon
-              name="chevron-down"
+              name="banknotes"
+              size={18}
+              color={kind === 'income' ? colors.income : colors.primary}
+            />
+            <View style={styles.splitAccountMeta}>
+              <Text
+                style={[styles.accountRoleText, { color: colors.textMuted }]}
+                numberOfLines={1}
+              >
+                {accountRolePrefix}
+              </Text>
+              <Text
+                style={[styles.accountNameText, { color: colors.text }]}
+                numberOfLines={1}
+              >
+                {accountDisplayName}
+              </Text>
+            </View>
+            <AppIcon
+              name="chevron-right"
               size={14}
               color={colors.textMuted}
             />
-          </View>
-        </Pressable>
-
-        {/* Row 3: Date */}
-        <Pressable
-          onPress={() => setDatePickerOpen(true)}
-          style={[styles.fieldRow, { borderBottomColor: colors.border }]}
-        >
-          <View style={styles.fieldIconBox}>
-            <AppIcon name="calendar" size={20} color={colors.textMuted} />
-          </View>
-          <Text style={[styles.fieldTextSecondary, { color: colors.textSecondary }]}>
-            {formatDisplayDate(date)}
-          </Text>
-        </Pressable>
+          </Pressable>
+        </View>
 
         {/* Row 4: Note */}
         <View style={[styles.fieldRow, { borderBottomColor: colors.border }]}>
@@ -845,6 +851,8 @@ export default function TransactionSheetScreen() {
             styles.bottomBar,
             {
               backgroundColor: colors.primary,
+              height: 52 + insets.bottom,
+              paddingBottom: insets.bottom,
               opacity: pressed ? 0.88 : 1,
             },
           ]}
@@ -935,9 +943,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
-    height: 52,
+    height: 48,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  splitFieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    height: 48,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  splitHalfLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingRight: 10,
+    height: '100%',
+  },
+  splitDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 24,
+  },
+  splitHalfRight: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 12,
+    height: '100%',
+  },
+  splitAccountMeta: {
+    flex: 1,
+    justifyContent: 'center',
   },
   fieldIconBox: {
     width: 36,
@@ -949,41 +988,17 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   fieldTextSecondary: {
-    fontSize: 14.5,
+    flex: 1,
+    fontSize: 14,
     fontWeight: '400',
   },
-  subcatTriggerPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-  },
-  subcatTriggerText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  accountRowCenter: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
   accountRoleText: {
-    fontSize: 13.5,
+    fontSize: 10.5,
     fontWeight: '500',
   },
   accountNameText: {
-    fontSize: 14.5,
+    fontSize: 13.5,
     fontWeight: '600',
-    flex: 1,
-  },
-  accountRowRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  accountBalanceHint: {
-    fontSize: 12.5,
-    fontVariant: ['tabular-nums'],
   },
   noteInput: {
     flex: 1,

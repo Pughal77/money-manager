@@ -9,7 +9,7 @@ export function DonutChart({
   size = 200,
   centerLabel,
   centerSubLabel,
-  maxLabelChars = 11,
+  maxLabelChars,
   selectedSliceId,
   onSlicePress,
   onCenterPress,
@@ -29,11 +29,13 @@ export function DonutChart({
   const outerRadius = Math.round(size * 0.45);
   const innerRadius = Math.round(size * 0.215);
   const centerHoleDiameter = innerRadius * 2;
+  const effectiveMaxChars = maxLabelChars ?? (size < 160 ? 8 : 11);
+  const showSubLabel = Boolean(centerSubLabel && size >= 180);
 
   const computed = computeDonutSlices(data, cx, cy, outerRadius, innerRadius);
 
   const renderCenterOverlay = (empty: boolean) => {
-    if (!centerLabel && !centerSubLabel) return null;
+    if (!centerLabel && !showSubLabel) return null;
     const content = (
       <>
         {centerLabel ? (
@@ -42,24 +44,26 @@ export function DonutChart({
               styles.centerLabel,
               {
                 color: empty ? colors.textMuted : colors.textSecondary,
-                fontSize: size < 160 ? 11.5 : 13,
+                fontSize: size < 160 ? 10.5 : 12.5,
               },
             ]}
             numberOfLines={1}
+            adjustsFontSizeToFit
           >
             {centerLabel}
           </Text>
         ) : null}
-        {centerSubLabel ? (
+        {showSubLabel ? (
           <Text
             style={[
               styles.centerSubLabel,
               {
                 color: colors.textMuted,
-                fontSize: size < 160 ? 9.5 : 10.5,
+                fontSize: 10,
               },
             ]}
             numberOfLines={1}
+            adjustsFontSizeToFit
           >
             {centerSubLabel}
           </Text>
@@ -90,7 +94,18 @@ export function DonutChart({
 
     return (
       <View style={styles.centerOverlay} pointerEvents="none">
-        {content}
+        <View
+          style={[
+            styles.centerHitTarget,
+            {
+              width: centerHoleDiameter,
+              height: centerHoleDiameter,
+              borderRadius: innerRadius,
+            },
+          ]}
+        >
+          {content}
+        </View>
       </View>
     );
   };
@@ -147,13 +162,13 @@ export function DonutChart({
             />
             <SvgText
               x={computed.slices[0].labelX}
-              y={computed.slices[0].labelY + 4}
+              y={computed.slices[0].labelY + 3.5}
               fill="#2C2C2E"
-              fontSize={size < 160 ? 11 : 13}
+              fontSize={size < 160 ? 9.5 : 11.5}
               fontWeight="600"
               textAnchor="middle"
             >
-              {truncateLabel(computed.slices[0].label, maxLabelChars)}
+              {truncateLabel(computed.slices[0].label, effectiveMaxChars)}
             </SvgText>
           </G>
         ) : (
@@ -176,14 +191,14 @@ export function DonutChart({
                 {slice.showLabel ? (
                   <SvgText
                     x={slice.labelX}
-                    y={slice.labelY + 4}
+                    y={slice.labelY + 3.5}
                     fill="#2C2C2E"
-                    fontSize={size < 160 ? 11 : 12.5}
+                    fontSize={size < 160 ? 9.5 : 11.5}
                     fontWeight="600"
                     textAnchor="middle"
                     opacity={isDimmed ? 0.55 : 1}
                   >
-                    {truncateLabel(slice.label, maxLabelChars)}
+                    {truncateLabel(slice.label, effectiveMaxChars)}
                   </SvgText>
                 ) : null}
               </G>

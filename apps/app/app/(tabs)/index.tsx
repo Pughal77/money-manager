@@ -179,38 +179,9 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel="Open monthly decomposition view"
           >
-            <View style={styles.cardHeaderLeft}>
-              <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
-                {range.monthLabel}'s balance
-              </Text>
-              <View
-                style={[
-                  styles.modePill,
-                  {
-                    backgroundColor:
-                      cardKind === 'expense'
-                        ? isDark
-                          ? 'rgba(232,92,92,0.16)'
-                          : 'rgba(220,38,38,0.1)'
-                        : isDark
-                          ? 'rgba(46,184,114,0.16)'
-                          : 'rgba(22,163,74,0.1)',
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.modePillText,
-                    {
-                      color:
-                        cardKind === 'expense' ? colors.expense : colors.income,
-                    },
-                  ]}
-                >
-                  {cardKind === 'expense' ? 'Expense' : 'Income'}
-                </Text>
-              </View>
-            </View>
+            <Text style={[styles.cardHeaderTitle, { color: colors.text }]}>
+              {range.monthLabel}'s balance
+            </Text>
 
             <View style={styles.breakdownLink}>
               <Text style={[styles.breakdownLinkText, { color: colors.textMuted }]}>
@@ -232,10 +203,9 @@ export default function HomeScreen() {
           >
             <DonutChart
               data={donutData}
-              size={136}
+              size={128}
               centerLabel={cardKind === 'expense' ? 'Expense' : 'Income'}
-              centerSubLabel="Tap to flip"
-              maxLabelChars={10}
+              maxLabelChars={8}
               onCenterPress={toggleCardKind}
               onSlicePress={toggleCardKind}
             />
@@ -334,7 +304,11 @@ export default function HomeScreen() {
                 <Text style={[styles.balanceLabel, { color: colors.textMuted }]}>
                   Balance
                 </Text>
-                <Text style={[styles.balanceValue, { color: colors.text }]}>
+                <Text
+                  style={[styles.balanceValue, { color: colors.text }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
                   {formatAmountPlain(summary.net)}
                 </Text>
               </View>
@@ -343,20 +317,9 @@ export default function HomeScreen() {
         </View>
 
         {/* Monthly Transactions Section */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionHeading, { color: colors.text }]}>
-            {range.monthLabel} transactions
-          </Text>
-          <Pressable
-            onPress={() => handleOpenBreakdown(cardKind)}
-            hitSlop={8}
-            style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1 })}
-          >
-            <Text style={[styles.decompositionLink, { color: colors.primary }]}>
-              View decomposition
-            </Text>
-          </Pressable>
-        </View>
+        <Text style={[styles.sectionHeading, { color: colors.text }]}>
+          {range.monthLabel} transactions
+        </Text>
 
         {visibleGroups.length === 0 ? (
           <View
@@ -461,7 +424,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingTop: 6,
-    paddingBottom: 96,
+    paddingBottom: 120,
   },
   balanceCard: {
     borderRadius: radius.lg,
@@ -477,22 +440,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  cardHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   cardHeaderTitle: {
     fontSize: 15,
-    fontWeight: '600',
-  },
-  modePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-  },
-  modePillText: {
-    fontSize: 11.5,
     fontWeight: '600',
   },
   breakdownLink: {
@@ -509,7 +458,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 16,
-    gap: 16,
+    gap: 14,
   },
   balanceStats: {
     flex: 1,
@@ -521,6 +470,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 4,
     marginBottom: 4,
+    gap: 8,
   },
   statLabelWrap: {
     flexDirection: 'row',
@@ -548,31 +498,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
+    gap: 8,
   },
   balanceLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
   },
   balanceValue: {
-    fontSize: 26,
+    flexShrink: 1,
+    fontSize: 22,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
-    letterSpacing: -0.5,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingHorizontal: 4,
+    letterSpacing: -0.4,
+    textAlign: 'right',
   },
   sectionHeading: {
     fontSize: 18,
     fontWeight: '700',
-  },
-  decompositionLink: {
-    fontSize: 13,
-    fontWeight: '600',
+    marginBottom: 12,
+    paddingHorizontal: 4,
   },
   emptyCard: {
     borderRadius: radius.lg,

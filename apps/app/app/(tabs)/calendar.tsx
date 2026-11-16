@@ -157,6 +157,7 @@ export default function CalendarScreen() {
                       <Text
                         style={[styles.cellIncome, { color: colors.income }]}
                         numberOfLines={1}
+                        adjustsFontSizeToFit
                       >
                         {formatAmountPlain(dayIncome)}
                       </Text>
@@ -165,6 +166,7 @@ export default function CalendarScreen() {
                       <Text
                         style={[styles.cellExpense, { color: colors.expense }]}
                         numberOfLines={1}
+                        adjustsFontSizeToFit
                       >
                         {formatAmountPlain(dayExpense)}
                       </Text>
@@ -244,7 +246,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingTop: 6,
-    paddingBottom: 96,
+    paddingBottom: 120,
   },
   calendarCard: {
     borderRadius: radius.lg,
@@ -280,10 +282,9 @@ const styles = StyleSheet.create({
   },
   dayCell: {
     width: '14.285%',
-    minHeight: 58,
-    paddingTop: 6,
-    paddingBottom: 6,
-    paddingHorizontal: 2,
+    minHeight: 64,
+    paddingVertical: 6,
+    paddingHorizontal: 3,
     alignItems: 'center',
     justifyContent: 'space-between',
   },
@@ -291,18 +292,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   cellTotals: {
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'flex-end',
     marginTop: 4,
-    gap: 1,
+    gap: 2,
   },
   cellIncome: {
-    fontSize: 10.5,
+    fontSize: 9.5,
     fontWeight: '500',
     fontVariant: ['tabular-nums'],
   },
   cellExpense: {
-    fontSize: 10.5,
+    fontSize: 9.5,
     fontWeight: '500',
     fontVariant: ['tabular-nums'],
   },

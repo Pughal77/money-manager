@@ -233,8 +233,7 @@ export default function BreakdownScreen() {
               data={donutData}
               size={224}
               centerLabel={kind === 'expense' ? 'Expense' : 'Income'}
-              centerSubLabel={formatAmountPlain(totalForKind)}
-              maxLabelChars={13}
+              maxLabelChars={11}
               selectedSliceId={selectedSliceId}
               onSlicePress={handleSlicePress}
               onCenterPress={() => {
@@ -303,8 +302,11 @@ export default function BreakdownScreen() {
                           color={item.color}
                           size={38}
                         />
-                        <View>
-                          <Text style={[styles.categoryName, { color: colors.text }]}>
+                        <View style={styles.categoryMeta}>
+                          <Text
+                            style={[styles.categoryName, { color: colors.text }]}
+                            numberOfLines={1}
+                          >
                             {item.categoryName}
                           </Text>
                           <Text style={[styles.txCountText, { color: colors.textMuted }]}>
@@ -400,7 +402,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingTop: 6,
-    paddingBottom: 96,
+    paddingBottom: 120,
   },
   segmentTrack: {
     flexDirection: 'row',
@@ -488,6 +490,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 10,
     marginBottom: 8,
   },
   categoryLeft: {
@@ -495,6 +498,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     flex: 1,
+    flexShrink: 1,
+  },
+  categoryMeta: {
+    flex: 1,
+    flexShrink: 1,
   },
   categoryName: {
     fontSize: 15,
@@ -507,6 +515,7 @@ const styles = StyleSheet.create({
   categoryRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
     gap: 6,
   },
   categoryAmount: {

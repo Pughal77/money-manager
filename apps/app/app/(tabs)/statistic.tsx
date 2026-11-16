@@ -239,7 +239,7 @@ export default function StatisticScreen() {
               size={208}
               centerLabel={activeCenterLabel}
               centerSubLabel="Tap to switch"
-              maxLabelChars={13}
+              maxLabelChars={11}
               onCenterPress={() =>
                 setChartKind((k) => (k === 'expense' ? 'income' : 'expense'))
               }
@@ -281,7 +281,10 @@ export default function StatisticScreen() {
               >
                 <View style={styles.categoryLeft}>
                   <CategoryBadge icon={item.icon} color={item.color} size={36} />
-                  <Text style={[styles.categoryName, { color: colors.textSecondary }]}>
+                  <Text
+                    style={[styles.categoryName, { color: colors.textSecondary }]}
+                    numberOfLines={1}
+                  >
                     {item.categoryName}
                   </Text>
                 </View>
@@ -328,7 +331,10 @@ export default function StatisticScreen() {
               >
                 <View style={styles.categoryLeft}>
                   <CategoryBadge icon={item.icon} color={item.color} size={36} />
-                  <Text style={[styles.categoryName, { color: colors.textSecondary }]}>
+                  <Text
+                    style={[styles.categoryName, { color: colors.textSecondary }]}
+                    numberOfLines={1}
+                  >
                     {item.categoryName}
                   </Text>
                 </View>
@@ -481,18 +487,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 10,
     paddingVertical: 9,
   },
   categoryLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    flex: 1,
+    flexShrink: 1,
+    gap: 12,
   },
   categoryName: {
+    flex: 1,
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: '500',
   },
   categoryAmount: {
+    flexShrink: 0,
     fontSize: 14.5,
     fontWeight: '500',
     fontVariant: ['tabular-nums'],
