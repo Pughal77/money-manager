@@ -6,6 +6,7 @@ export type AccountType = 'checking' | 'savings' | 'cash' | 'credit';
 export type CategoryKind = 'expense' | 'income';
 export type TransactionKind = 'expense' | 'income' | 'transfer';
 export type ThemeMode = 'dark' | 'light';
+export type ThemeAccent = 'emerald' | 'cobalt' | 'amethyst' | 'slate';
 export type BudgetPeriodType = 'weekly' | 'monthly' | 'yearly';
 
 export interface Account {
@@ -142,6 +143,7 @@ export function createAppStore(uniqueId?: string): MergeableStore {
     currency: { type: 'string', default: 'USD' },
     vaultInitialized: { type: 'boolean', default: false },
     theme: { type: 'string', default: 'dark' },
+    themeAccent: { type: 'string', default: 'emerald' },
     presetVersion: { type: 'number', default: 0 },
   });
   return store;

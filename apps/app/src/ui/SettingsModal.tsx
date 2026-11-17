@@ -20,7 +20,7 @@ import { webSyncClient } from '../platform/client';
 import { phoneLanServer } from '../server/lanServer';
 import { Button, Card } from './components';
 import { AppIcon } from './icons';
-import { radius, spacing, useTheme } from './theme';
+import { radius, spacing, useTheme, THEME_ACCENTS } from './theme';
 import { useResponsive } from './useResponsive';
 
 export function SettingsModal({
@@ -31,7 +31,7 @@ export function SettingsModal({
   onClose: () => void;
 }) {
   const { store, role, webState, lanState } = useVault();
-  const { colors, mode, setMode } = useTheme();
+  const { colors, mode, setMode, accent, setAccent } = useTheme();
   const { isDesktop } = useResponsive();
   const router = useRouter();
 
@@ -125,8 +125,10 @@ export function SettingsModal({
                 Appearance
               </Text>
               <Text style={[styles.cardSub, { color: colors.textMuted }]}>
-                Switch between Dark Mode and pure-white Light Mode.
+                Switch between Dark Mode and Light Mode, and choose your color accent.
               </Text>
+
+              {/* Mode Segment */}
               <View
                 style={[
                   styles.segmentTrack,
@@ -143,12 +145,12 @@ export function SettingsModal({
                   <AppIcon
                     name="moon"
                     size={16}
-                    color={mode === 'dark' ? '#FFFFFF' : colors.textSecondary}
+                    color={mode === 'dark' ? colors.primaryText : colors.textSecondary}
                   />
                   <Text
                     style={[
                       styles.segmentText,
-                      { color: mode === 'dark' ? '#FFFFFF' : colors.textSecondary },
+                      { color: mode === 'dark' ? colors.primaryText : colors.textSecondary },
                     ]}
                   >
                     Dark Mode
@@ -164,17 +166,91 @@ export function SettingsModal({
                   <AppIcon
                     name="sun"
                     size={16}
-                    color={mode === 'light' ? '#FFFFFF' : colors.textSecondary}
+                    color={mode === 'light' ? colors.primaryText : colors.textSecondary}
                   />
                   <Text
                     style={[
                       styles.segmentText,
-                      { color: mode === 'light' ? '#FFFFFF' : colors.textSecondary },
+                      { color: mode === 'light' ? colors.primaryText : colors.textSecondary },
                     ]}
                   >
                     Light Mode
                   </Text>
                 </Pressable>
+              </View>
+
+              {/* Accent Palette Selector */}
+              <Text
+                style={[
+                  styles.label,
+                  { color: colors.textSecondary, marginTop: 18, marginBottom: 8 },
+                ]}
+              >
+                THEME ACCENT
+              </Text>
+              <View style={styles.themeGrid}>
+                {THEME_ACCENTS.map((item) => {
+                  const isSelected = accent === item.id;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => setAccent(item.id)}
+                      style={({ pressed }) => [
+                        styles.themeChip,
+                        {
+                          backgroundColor: isSelected
+                            ? colors.calendarSelectedBg
+                            : colors.surfaceElevated,
+                          borderColor: isSelected
+                            ? colors.primary
+                            : colors.borderSubtle,
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
+                    >
+                      <View style={styles.themeChipTop}>
+                        <View
+                          style={[
+                            styles.themeSwatch,
+                            { backgroundColor: item.swatch },
+                          ]}
+                        />
+                        {isSelected && (
+                          <View
+                            style={[
+                              styles.themeCheckBadge,
+                              { backgroundColor: colors.primary },
+                            ]}
+                          >
+                            <AppIcon
+                              name="check"
+                              size={11}
+                              color={colors.primaryText}
+                              strokeWidth={2.8}
+                            />
+                          </View>
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.themeName,
+                          {
+                            color: isSelected ? colors.primary : colors.text,
+                            fontWeight: isSelected ? '700' : '600',
+                          },
+                        ]}
+                      >
+                        {item.name}
+                      </Text>
+                      <Text
+                        style={[styles.themeSubtitle, { color: colors.textMuted }]}
+                        numberOfLines={1}
+                      >
+                        {item.subtitle}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
             </Card>
 
@@ -482,5 +558,45 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: radius.md,
     alignItems: 'center',
+  },
+  themeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 4,
+  },
+  themeChip: {
+    width: '48%',
+    flexGrow: 1,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    padding: 12,
+  },
+  themeChipTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  themeSwatch: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  themeCheckBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeName: {
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  themeSubtitle: {
+    fontSize: 11,
   },
 });

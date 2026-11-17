@@ -33,6 +33,7 @@ import {
   getPeriodSummary,
   getSubcategoryBreakdown,
   getThemeMode,
+  getThemeAccent,
   getWeekDateRange,
   getWeeksForMonth,
   getYearDateRange,
@@ -44,6 +45,7 @@ import {
   seedDefaultData,
   setBudget,
   setThemeMode,
+  setThemeAccent,
   shiftYear,
   shiftYearMonth,
   stepCalculator,
@@ -183,6 +185,15 @@ describe('@mm/core', () => {
     expect(getThemeMode(store)).toBe('dark');
     setThemeMode(store, 'light');
     expect(getThemeMode(store)).toBe('light');
+
+    // Theme accent defaults to emerald and can switch to other accents
+    expect(getThemeAccent(store)).toBe('emerald');
+    setThemeAccent(store, 'cobalt');
+    expect(getThemeAccent(store)).toBe('cobalt');
+    setThemeAccent(store, 'amethyst');
+    expect(getThemeAccent(store)).toBe('amethyst');
+    setThemeAccent(store, 'slate');
+    expect(getThemeAccent(store)).toBe('slate');
 
     // Add Food > Eating out and Food > Drink transactions
     const tx1 = addTransaction(store, {

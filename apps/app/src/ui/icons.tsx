@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, Rect, Line, G } from 'react-native-svg';
+import { BrandLogo } from './BrandLogo';
 
 export type IconName =
   | 'cart'
@@ -39,7 +40,11 @@ export type IconName =
   | 'backspace'
   | 'sun'
   | 'moon'
+  | 'app-logo'
+  | 'check'
   | 'close';
+
+export { BrandLogo } from './BrandLogo';
 
 export function AppIcon({
   name,
@@ -608,6 +613,22 @@ export function AppIcon({
             d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z"
             stroke={color}
             strokeWidth={strokeWidth}
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+
+    case 'app-logo':
+      return <BrandLogo size={size} variant="symbol-only" accentColor={color} />;
+
+    case 'check':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M5 13l4 4L19 7"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
             strokeLinejoin="round"
           />
         </Svg>

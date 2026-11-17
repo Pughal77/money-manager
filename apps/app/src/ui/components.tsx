@@ -105,7 +105,7 @@ export function Button({
       : variant === 'danger'
         ? colors.expense
         : colors.surfaceElevated;
-  const fg = variant === 'primary' ? '#FFFFFF' : colors.text;
+  const fg = variant === 'primary' ? (colors.primaryText ?? '#FFFFFF') : colors.text;
 
   return (
     <Pressable

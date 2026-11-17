@@ -10,6 +10,7 @@ import { usePathname, useRouter } from 'expo-router';
 import { useVault } from '../data/VaultContext';
 import { webSyncClient } from '../platform/client';
 import { AppIcon, type IconName } from './icons';
+import { BrandLogo } from './BrandLogo';
 import { radius, spacing, useTheme } from './theme';
 
 interface NavItem {
@@ -94,9 +95,7 @@ export function DesktopSidebar() {
     >
       {/* Brand Header */}
       <View style={styles.brandHeader}>
-        <View style={[styles.brandIcon, { backgroundColor: colors.primary }]}>
-          <Text style={styles.brandLetter}>$</Text>
-        </View>
+        <BrandLogo size={36} />
         <View>
           <Text style={[styles.brandTitle, { color: colors.text }]}>
             Money Manager
@@ -118,8 +117,8 @@ export function DesktopSidebar() {
         ]}
         onPress={() => router.push('/transaction/new')}
       >
-        <AppIcon name="plus" size={18} color="#000000" strokeWidth={2.2} />
-        <Text style={styles.newTxButtonText}>New Transaction</Text>
+        <AppIcon name="plus" size={18} color={colors.primaryText} strokeWidth={2.2} />
+        <Text style={[styles.newTxButtonText, { color: colors.primaryText }]}>New Transaction</Text>
       </Pressable>
 
       {/* Nav List */}
@@ -137,8 +136,8 @@ export function DesktopSidebar() {
                 {
                   backgroundColor: active
                     ? isDark
-                      ? '#2A2A2A'
-                      : '#EDE9FE'
+                      ? colors.surfaceElevated
+                      : colors.calendarSelectedBg
                     : hovered
                       ? isDark
                         ? '#222222'
@@ -158,13 +157,13 @@ export function DesktopSidebar() {
               <AppIcon
                 name={item.icon}
                 size={18}
-                color={active ? (isDark ? '#F5F5F5' : '#4F46E5') : colors.textSecondary}
+                color={active ? colors.primary : colors.textSecondary}
               />
               <Text
                 style={[
                   styles.navItemLabel,
                   {
-                    color: active ? (isDark ? '#FFFFFF' : '#4F46E5') : colors.text,
+                    color: active ? colors.primary : colors.text,
                     fontWeight: active ? '600' : '400',
                   },
                 ]}

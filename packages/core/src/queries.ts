@@ -9,6 +9,7 @@ import {
   type Category,
   type CategoryKind,
   type ThemeMode,
+  type ThemeAccent,
   type Transaction,
   type TransactionKind,
 } from './schema';
@@ -17,6 +18,18 @@ import { normalizeBudgetPeriod } from './uiMath';
 export function getThemeMode(store: MergeableStore): ThemeMode {
   const val = String(store.getValue('theme') ?? 'dark');
   return val === 'light' ? 'light' : 'dark';
+}
+
+export function getThemeAccent(store: MergeableStore): ThemeAccent {
+  const val = String(store.getValue('themeAccent') ?? 'emerald');
+  switch (val) {
+    case 'cobalt':
+    case 'amethyst':
+    case 'slate':
+      return val;
+    default:
+      return 'emerald';
+  }
 }
 
 export function listAccounts(store: MergeableStore): Account[] {

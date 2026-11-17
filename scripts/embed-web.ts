@@ -14,6 +14,25 @@ if (!fs.existsSync(distDir)) {
   process.exit(1);
 }
 
+// Ensure favicon.svg and link in index.html are present
+const iconSrc = path.resolve(process.cwd(), 'apps/app/assets/icon.svg');
+const faviconDist = path.join(distDir, 'favicon.svg');
+if (fs.existsSync(iconSrc)) {
+  fs.copyFileSync(iconSrc, faviconDist);
+}
+
+const indexHtmlPath = path.join(distDir, 'index.html');
+if (fs.existsSync(indexHtmlPath)) {
+  let html = fs.readFileSync(indexHtmlPath, 'utf-8');
+  if (!html.includes('favicon.svg')) {
+    html = html.replace(
+      '<head>',
+      '<head>\n    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />'
+    );
+    fs.writeFileSync(indexHtmlPath, html, 'utf-8');
+  }
+}
+
 const MIME_MAP: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',

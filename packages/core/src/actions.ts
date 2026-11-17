@@ -6,6 +6,7 @@ import type {
   BudgetPeriodType,
   CategoryKind,
   ThemeMode,
+  ThemeAccent,
   TransactionKind,
 } from './schema';
 import { normalizeBudgetPeriod } from './uiMath';
@@ -260,4 +261,8 @@ export function deleteBudget(store: MergeableStore, id: string): void {
 
 export function setThemeMode(store: MergeableStore, mode: ThemeMode): void {
   store.setValue('theme', mode);
+}
+
+export function setThemeAccent(store: MergeableStore, accent: ThemeAccent): void {
+  store.setValue('themeAccent', accent);
 }
