@@ -1,6 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import Papa from 'papaparse';
 import type { MergeableStore } from 'tinybase';
+import { parseToCents } from './money';
 import { TABLES } from './schema';
 
 export type RestoreMode = 'merge' | 'replace';
@@ -11,6 +12,38 @@ const TABLE_NAMES = [
   TABLES.transactions,
   TABLES.budgets,
 ] as const;
+
+function findZipCsvBytes(
+  unzipped: Record<string, Uint8Array>,
+  tableName: string
+): Uint8Array | undefined {
+  const directKey = `${tableName}.csv`;
+  if (unzipped[directKey]) {
+    return unzipped[directKey];
+  }
+  const matchingKey = Object.keys(unzipped).find((key) => {
+    if (key.includes('__MACOSX') || key.split('/').some((part) => part.startsWith('.'))) {
+      return false;
+    }
+    return key === directKey || key.endsWith(`/${directKey}`);
+  });
+  return matchingKey ? unzipped[matchingKey] : undefined;
+}
+
+function parseSafeAmount(val: string | undefined, treatAsDecimal: boolean): number {
+  const cleaned = (val ?? '').trim();
+  if (!cleaned) return 0;
+  if (treatAsDecimal || cleaned.includes('.') || cleaned.includes('$')) {
+    try {
+      return parseToCents(cleaned);
+    } catch {
+      const num = Number(cleaned.replace(/[$,\s]/g, ''));
+      return Number.isFinite(num) ? Math.round(num * 100) : 0;
+    }
+  }
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? Math.round(n) : 0;
+}
 
 /**
  * Exports all tables (accounts, categories, transactions, budgets) into a single ZIP archive
@@ -45,6 +78,11 @@ export function importBackupZip(
   const unzipped = unzipSync(zipBytes);
   let importedRows = 0;
 
+  const hasAnyMatchingTable = TABLE_NAMES.some((t) => findZipCsvBytes(unzipped, t));
+  if (!hasAnyMatchingTable) {
+    return { importedRows: 0 };
+  }
+
   store.transaction(() => {
     if (mode === 'replace') {
       for (const tableName of TABLE_NAMES) {
@@ -53,7 +91,7 @@ export function importBackupZip(
     }
 
     for (const tableName of TABLE_NAMES) {
-      const fileBytes = unzipped[`${tableName}.csv`];
+      const fileBytes = findZipCsvBytes(unzipped, tableName);
       if (!fileBytes) continue;
       const csvText = strFromU8(fileBytes).trim();
       if (!csvText) continue;
@@ -63,6 +101,14 @@ export function importBackupZip(
         skipEmptyLines: true,
       });
 
+      const treatAsDecimal =
+        tableName === 'transactions' &&
+        parsed.data.some(
+          (r) =>
+            typeof r.amount === 'string' &&
+            (r.amount.includes('.') || r.amount.includes('$'))
+        );
+
       for (const rawRow of parsed.data) {
         const id = rawRow.id?.trim();
         if (!id) continue;
@@ -71,7 +117,7 @@ export function importBackupZip(
           store.setRow('accounts', id, {
             name: String(rawRow.name ?? ''),
             type: String(rawRow.type || 'checking'),
-            openingBalance: Number(rawRow.openingBalance ?? 0),
+            openingBalance: parseSafeAmount(rawRow.openingBalance, false),
             color: String(rawRow.color || '#38bdf8'),
             createdAt: String(rawRow.createdAt ?? ''),
             deleted: rawRow.deleted === 'true' || rawRow.deleted === '1',
@@ -96,7 +142,7 @@ export function importBackupZip(
             categoryId: String(rawRow.categoryId ?? ''),
             subcategory: String(rawRow.subcategory ?? ''),
             kind: String(rawRow.kind || 'expense'),
-            amount: Number(rawRow.amount ?? 0),
+            amount: Math.abs(parseSafeAmount(rawRow.amount, treatAsDecimal)),
             date: String(rawRow.date ?? ''),
             note: String(rawRow.note ?? ''),
             createdAt: String(rawRow.createdAt ?? ''),
@@ -119,7 +165,7 @@ export function importBackupZip(
             categoryId: String(rawRow.categoryId ?? ''),
             month: rawMonth,
             periodType: inferredType,
-            limitAmount: Number(rawRow.limitAmount ?? 0),
+            limitAmount: parseSafeAmount(rawRow.limitAmount, false),
             rollover: rawRow.rollover === 'true' || rawRow.rollover === '1',
             deleted: rawRow.deleted === 'true' || rawRow.deleted === '1',
           });

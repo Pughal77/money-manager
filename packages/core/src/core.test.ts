@@ -1,4 +1,6 @@
+import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { strToU8, zipSync } from 'fflate';
 import {
   addAccount,
   addCategory,
@@ -307,6 +309,51 @@ describe('@mm/core', () => {
     importBackupZip(destMerge, zipBytes, 'merge');
     expect(destMerge.hasRow('accounts', 'acc-extra')).toBe(true);
     expect(listTransactions(destMerge).map((t) => t.id)).toContain(txId);
+
+    // Import from directory-wrapped ZIP with decimal dollar values
+    const nestedZip = zipSync({
+      'my-backup-folder/accounts.csv': strToU8('id,name,type,openingBalance,color,createdAt,deleted\nacc-1,Checking,checking,150.50,#F3A833,2026-11-17,false'),
+      'my-backup-folder/categories.csv': strToU8('id,name,kind,icon,color,subcategories,sortOrder,createdAt,deleted\ncat-1,Food,expense,food,#F29B9B,"[""Other""]",1,2026-11-17,false'),
+      'my-backup-folder/transactions.csv': strToU8('id,accountId,toAccountId,categoryId,subcategory,kind,amount,date,note,createdAt,deleted\ntx-1,acc-1,,cat-1,Dinner,expense,17.25,2026-11-17,Keisuke,2026-11-17,false\ntx-2,acc-1,,cat-1,Grocery,expense,35,2026-11-17,FairPrice,2026-11-17,false'),
+      'my-backup-folder/budgets.csv': strToU8('id,categoryId,month,periodType,limitAmount,rollover,deleted\n2026-11:cat-1,cat-1,2026-11,monthly,500.00,false,false'),
+    });
+    const destNested = createAppStore('node-nested');
+    const importRes = importBackupZip(destNested, nestedZip, 'replace');
+    expect(importRes.importedRows).toBe(5);
+    const tx1 = getTransactionById(destNested, 'tx-1');
+    const tx2 = getTransactionById(destNested, 'tx-2');
+    expect(tx1?.amount).toBe(1725); // $17.25 -> 1725 cents
+    expect(tx2?.amount).toBe(3500); // $35 -> 3500 cents
+    expect(getAccountById(destNested, 'acc-1')?.openingBalance).toBe(15050); // $150.50 -> 15050 cents
+
+    // If the user's uploaded backup ZIP exists, test full restore and display formatting
+    const userZipPath = '/home/raijinshounen/.gemini/antigravity/brain/0c7ed11e-ba88-4e79-85d2-407d749e6fcb/.user_uploaded/media_1794936106803_9e0bab16.zip';
+    if (fs.existsSync(userZipPath)) {
+      const userZipBytes = new Uint8Array(fs.readFileSync(userZipPath));
+      const userStore = createAppStore('node-user-zip');
+      const userImportRes = importBackupZip(userStore, userZipBytes, 'replace');
+      expect(userImportRes.importedRows).toBe(72); // 1 account + 22 categories + 48 transactions + 1 budget
+      const txs = listTransactions(userStore);
+      expect(txs).toHaveLength(48);
+      // Verify all amounts are safe integer cents and can format without error
+      for (const t of txs) {
+        expect(Number.isSafeInteger(t.amount)).toBe(true);
+        expect(t.amount).toBeGreaterThan(0);
+        expect(() => formatAmountPlain(t.amount)).not.toThrow();
+      }
+      // Check specific transactions from user file
+      const ramenTx = txs.find((t) => t.note === 'WWW.KEISUK TONKOTSUKI');
+      expect(ramenTx?.amount).toBe(1725); // $17.25 -> 1725 cents
+      expect(formatAmountPlain(ramenTx!.amount)).toBe('17.25');
+
+      const ntucTx = txs.find((t) => t.note === 'NTUC FP - CHINATOWN PT');
+      expect(ntucTx?.amount).toBe(3500); // $35 -> 3500 cents
+      expect(formatAmountPlain(ntucTx!.amount)).toBe('35');
+
+      const incomeTx = txs.find((t) => t.id === 'tx-100045');
+      expect(incomeTx?.amount).toBe(100000); // $1000 -> 100000 cents
+      expect(formatAmountPlain(incomeTx!.amount)).toBe('1,000');
+    }
   });
 
   it('computes SVG donut chart slices, calendar month grids, and period date ranges accurately', () => {
